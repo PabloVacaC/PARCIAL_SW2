@@ -1,0 +1,254 @@
+<div class="landing-page">
+
+  <!-- NAVBAR -->
+  <header class="navbar">
+
+    <div class="navbar-content">
+
+      <div class="logo" (click)="irInicio()">
+        <div class="logo-icon">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+
+        <span class="logo-text">CodeForge AI</span>
+      </div>
+
+      <nav class="nav-actions">
+
+        <button
+          class="login-btn"
+          type="button"
+          (click)="irLogin()">
+          Iniciar sesión
+        </button>
+
+        <button
+          class="register-btn"
+          type="button"
+          (click)="irRegistro()">
+          Registrarse
+        </button>
+
+      </nav>
+
+    </div>
+
+  </header>
+
+
+  <!-- HERO -->
+  <main class="hero">
+
+    <section class="hero-content">
+
+      <div class="version-badge">
+        <span class="status-dot"></span>
+        v1.0 — Ahora disponible
+      </div>
+
+      <h1>
+        Diseña UML
+        <span>con inteligencia</span>
+      </h1>
+
+      <p class="hero-description">
+        El editor de diagramas UML que combina una
+        <strong>IA conversacional</strong> con un canvas
+        profesional. Modela, documenta y colabora
+        sin fricción.
+      </p>
+
+      <div class="hero-buttons">
+
+        <button
+          class="primary-btn"
+          type="button"
+          (click)="irRegistro()">
+          Empezar gratis
+        </button>
+
+        <button
+          class="secondary-btn"
+          type="button"
+          (click)="irLogin()">
+          Iniciar sesión
+        </button>
+
+      </div>
+
+      <p class="free-text">
+        Totalmente gratis. Sin tarjeta de crédito.
+      </p>
+
+    </section>
+
+
+    <!-- MOCKUP DEL DIAGRAMADOR -->
+    <section class="editor-preview">
+
+      <div class="window">
+
+        <div class="window-header">
+
+          <div class="window-dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+          </div>
+
+          <div class="window-title">
+            CodeForge AI — Editor UML
+          </div>
+
+        </div>
+
+
+        <div class="diagram-area">
+
+          <!-- Clase 1 -->
+          <div class="uml-class class-one">
+
+            <div class="class-header">
+              UserService
+            </div>
+
+            <div class="class-body">
+              <div>+ id: Long</div>
+              <div>+ name: String</div>
+              <div>+ email: String</div>
+            </div>
+
+          </div>
+
+
+          <!-- Clase 2 -->
+          <div class="uml-class class-two">
+
+            <div class="class-header">
+              OrderController
+            </div>
+
+            <div class="class-body">
+              <div>+ id: Long</div>
+              <div>+ name: String</div>
+              <div>+ create(): Order</div>
+            </div>
+
+          </div>
+
+
+          <!-- Interface -->
+          <div class="uml-class interface-class">
+
+            <div class="class-header">
+              &lt;&lt;interface&gt;&gt; IRepository
+            </div>
+
+            <div class="class-body">
+              <div>+ findById()</div>
+              <div>+ save()</div>
+            </div>
+
+          </div>
+
+
+          <!-- Conectores -->
+          <div class="connection connection-one"></div>
+
+          <div class="connection connection-two"></div>
+
+        </div>
+
+
+        <!-- PROMPT AI -->
+        <div class="ai-prompt">
+
+          <span class="ai-label">AI</span>
+
+          <span>
+            Genera un diagrama de clases para un sistema de pedidos...
+          </span>
+
+          <span class="cursor"></span>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- FEATURES -->
+  <section class="features">
+
+    <div class="features-content">
+
+      <h2>
+        Todo lo que necesitas para modelar
+      </h2>
+
+      <p>
+        Potente, rápido y pensado para desarrolladores
+      </p>
+
+      <div class="feature-grid">
+
+        <div class="feature-card">
+
+          <div class="feature-icon">◈</div>
+
+          <h3>
+            Diagramas UML
+          </h3>
+
+          <p>
+            Crea y modifica modelos UML de forma
+            visual e intuitiva.
+          </p>
+
+        </div>
+
+
+        <div class="feature-card">
+
+          <div class="feature-icon">✦</div>
+
+          <h3>
+            Inteligencia Artificial
+          </h3>
+
+          <p>
+            Describe lo que necesitas y deja que
+            la IA te ayude a modelarlo.
+          </p>
+
+        </div>
+
+
+        <div class="feature-card">
+
+          <div class="feature-icon">◌</div>
+
+          <h3>
+            Colaboración
+          </h3>
+
+          <p>
+            Trabaja con tu equipo sobre el mismo
+            proyecto.
+          </p>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+</div>

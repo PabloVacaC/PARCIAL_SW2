@@ -1,0 +1,1058 @@
+<div class="dashboard-page">
+
+  <!-- =====================================================
+       BARRA SUPERIOR
+  ====================================================== -->
+
+  <header class="topbar">
+
+    <!-- LOGO -->
+
+    <button
+      type="button"
+      class="brand"
+      (click)="irInicio()"
+    >
+
+      <div class="logo-icon">
+
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+
+      </div>
+
+      <span class="brand-text">
+        CodeForge AI
+      </span>
+
+    </button>
+
+
+    <!-- PARTE DERECHA -->
+
+    <div class="topbar-right">
+
+
+      <!-- =================================================
+           BUZÓN DE INVITACIONES
+      ================================================== -->
+
+      <div class="mail-wrapper">
+
+        <button
+          type="button"
+          class="mail-button"
+          (click)="toggleBuzon()"
+          title="Invitaciones"
+        >
+
+          <span class="mail-icon">
+            ✉
+          </span>
+
+
+          @if (invitaciones.length > 0) {
+
+            <span class="mail-badge">
+              {{ invitaciones.length }}
+            </span>
+
+          }
+
+        </button>
+
+
+
+        <!-- =================================================
+             PANEL DEL BUZÓN
+        ================================================== -->
+
+        @if (mostrarBuzon) {
+
+          <div class="mail-panel">
+
+
+            <!-- CABECERA -->
+
+            <div class="mail-panel-header">
+
+              <div>
+
+                <span class="section-kicker">
+                  COLABORACIÓN
+                </span>
+
+                <h3>
+                  Invitaciones
+                </h3>
+
+              </div>
+
+
+              <button
+                type="button"
+                class="mail-close"
+                (click)="toggleBuzon()"
+              >
+                ×
+              </button>
+
+            </div>
+
+
+
+            <!-- CARGANDO INVITACIONES -->
+
+            @if (cargandoInvitaciones) {
+
+              <div class="mail-state">
+
+                <div class="loading-circle"></div>
+
+                <p>
+                  Cargando invitaciones...
+                </p>
+
+              </div>
+
+            }
+
+
+
+            <!-- SIN INVITACIONES -->
+
+            @if (
+              !cargandoInvitaciones &&
+              invitaciones.length === 0
+            ) {
+
+              <div class="mail-state">
+
+                <div class="empty-mail-icon">
+                  ✓
+                </div>
+
+                <p>
+                  No tienes invitaciones pendientes.
+                </p>
+
+              </div>
+
+            }
+
+
+
+            <!-- =================================================
+                 LISTA DE INVITACIONES
+            ================================================== -->
+
+            @if (
+              !cargandoInvitaciones &&
+              invitaciones.length > 0
+            ) {
+
+              @for (
+                invitacion of invitaciones;
+                track invitacion.idInvitacion
+              ) {
+
+                <div class="invitation-card">
+
+
+                  <!-- ICONO -->
+
+                  <div class="invitation-icon">
+                    ✉
+                  </div>
+
+
+                  <!-- INFORMACIÓN -->
+
+                  <div class="invitation-content">
+
+                    <strong>
+                      {{ invitacion.nombreEmisor }}
+                    </strong>
+
+
+                    <p>
+
+                      te invitó a:
+
+                      <span>
+                        {{ invitacion.nombreProyecto }}
+                      </span>
+
+                    </p>
+
+
+                    <small>
+
+                      Rol:
+                      {{ invitacion.rolPropuesto }}
+
+                    </small>
+
+
+                    <!-- BOTONES -->
+
+                    <div class="invitation-actions">
+
+                      <button
+                        type="button"
+                        class="accept-button"
+                        [disabled]="procesandoInvitacion"
+                        (click)="aceptarInvitacion(invitacion)"
+                      >
+                        Aceptar
+                      </button>
+
+
+                      <button
+                        type="button"
+                        class="reject-button"
+                        [disabled]="procesandoInvitacion"
+                        (click)="rechazarInvitacion(invitacion)"
+                      >
+                        Rechazar
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              }
+
+            }
+
+
+
+            <!-- MENSAJE -->
+
+            @if (mensajeInvitacion) {
+
+              <div class="mail-message">
+                {{ mensajeInvitacion }}
+              </div>
+
+            }
+
+
+          </div>
+
+        }
+
+      </div>
+
+
+
+      <!-- =================================================
+           USUARIO
+      ================================================== -->
+
+      <div class="user-box">
+
+        <div class="avatar">
+          {{ usuario?.nombre?.charAt(0) || 'U' }}
+        </div>
+
+
+        <div class="user-data">
+
+          <span class="user-name">
+            {{ usuario?.nombre }} {{ usuario?.apellido }}
+          </span>
+
+
+          <span class="user-username">
+            @{{ usuario?.username }}
+          </span>
+
+        </div>
+
+      </div>
+
+
+
+      <!-- CERRAR SESIÓN -->
+
+      <button
+        type="button"
+        class="logout-button"
+        (click)="cerrarSesion()"
+      >
+        Cerrar sesión
+      </button>
+
+
+    </div>
+
+  </header>
+
+
+
+  <!-- =====================================================
+       ESTRUCTURA PRINCIPAL
+  ====================================================== -->
+
+  <div class="dashboard-layout">
+
+
+    <!-- ===================================================
+         SIDEBAR
+    ==================================================== -->
+
+    <aside class="sidebar">
+
+
+      <!-- CABECERA -->
+
+      <div class="sidebar-heading">
+
+        <span>
+          PROYECTOS
+        </span>
+
+
+        <button
+          type="button"
+          class="sidebar-plus"
+          (click)="abrirFormulario()"
+          title="Nuevo proyecto"
+        >
+          +
+        </button>
+
+      </div>
+
+
+      <!-- NUEVO PROYECTO -->
+
+      <button
+        type="button"
+        class="new-project-button"
+        (click)="abrirFormulario()"
+      >
+
+        <span class="plus-icon">
+          +
+        </span>
+
+        Nuevo proyecto
+
+      </button>
+
+
+
+      <!-- =================================================
+           PROYECTOS RECIENTES
+      ================================================== -->
+
+      <div class="sidebar-section">
+
+        <div class="sidebar-label">
+          RECIENTES
+        </div>
+
+
+        @if (
+          proyectos.length === 0 &&
+          !cargando
+        ) {
+
+          <p class="empty-sidebar">
+            No hay proyectos todavía.
+          </p>
+
+        }
+
+
+        @for (
+          proyecto of proyectos.slice(0, 5);
+          track proyecto.idProyecto
+        ) {
+
+          <button
+            type="button"
+            class="recent-project"
+            (click)="abrirProyecto(proyecto)"
+          >
+
+            <span class="recent-dot"></span>
+
+
+            <span class="recent-project-content">
+
+              <span class="recent-project-name">
+                {{ proyecto.nombre }}
+              </span>
+
+
+              <span class="recent-project-owner">
+                {{ proyecto.usernamePropietario }}
+              </span>
+
+            </span>
+
+          </button>
+
+        }
+
+      </div>
+
+
+
+      <!-- =================================================
+           TODOS LOS PROYECTOS
+      ================================================== -->
+
+      <div class="sidebar-section">
+
+        <div class="sidebar-label">
+          TODOS LOS PROYECTOS
+        </div>
+
+
+        @if (
+          proyectos.length === 0 &&
+          !cargando
+        ) {
+
+          <p class="empty-sidebar">
+            Aún no tienes proyectos.
+          </p>
+
+        }
+
+
+        @for (
+          proyecto of proyectos;
+          track proyecto.idProyecto
+        ) {
+
+          <button
+            type="button"
+            class="all-project"
+            (click)="abrirProyecto(proyecto)"
+          >
+
+            <span class="project-file-icon">
+              ▣
+            </span>
+
+
+            <span class="all-project-name">
+              {{ proyecto.nombre }}
+            </span>
+
+          </button>
+
+        }
+
+      </div>
+
+    </aside>
+
+
+
+    <!-- ===================================================
+         CONTENIDO PRINCIPAL
+    ==================================================== -->
+
+    <main class="main-content">
+
+
+      <!-- =================================================
+           BIENVENIDA
+      ================================================== -->
+
+      <section class="welcome">
+
+        <div>
+
+          <span class="section-kicker">
+            WORKSPACE
+          </span>
+
+
+          <h1>
+            Bienvenido, {{ usuario?.nombre }}
+          </h1>
+
+
+          <p>
+            Crea, modela y transforma tus ideas en sistemas
+            utilizando UML e inteligencia artificial.
+          </p>
+
+        </div>
+
+
+        <button
+          type="button"
+          class="primary-button"
+          (click)="abrirFormulario()"
+        >
+
+          <span>
+            +
+          </span>
+
+          Crear proyecto
+
+        </button>
+
+      </section>
+
+
+
+      <!-- =================================================
+           AGENTE CODEFORGE
+      ================================================== -->
+
+      <section class="agent-card">
+
+
+        <div class="agent-avatar">
+          ✦
+        </div>
+
+
+        <div class="agent-body">
+
+
+          <div class="agent-header">
+
+            <div>
+
+              <span class="section-kicker">
+                ASISTENTE
+              </span>
+
+
+              <h2>
+                Agente CodeForge
+              </h2>
+
+            </div>
+
+
+            <span class="agent-online">
+              ● En línea
+            </span>
+
+          </div>
+
+
+          <p>
+
+            Tu asistente para aprender a utilizar
+            CodeForge AI. Podrá explicarte las herramientas,
+            enseñarte UML y acompañarte mientras construyes
+            tus proyectos.
+
+          </p>
+
+
+          <div class="agent-buttons">
+
+            <button type="button">
+              ¿Cómo empiezo?
+            </button>
+
+
+            <button type="button">
+              Explícame UML
+            </button>
+
+
+            <button type="button">
+              Ver tutorial
+            </button>
+
+          </div>
+
+
+        </div>
+
+      </section>
+
+
+
+      <!-- =================================================
+           MIS PROYECTOS
+      ================================================== -->
+
+      <section class="projects-section">
+
+
+        <div class="section-title">
+
+
+          <div>
+
+            <span class="section-kicker">
+              MIS PROYECTOS
+            </span>
+
+
+            <h2>
+              Todos tus proyectos
+            </h2>
+
+          </div>
+
+
+          <button
+            type="button"
+            class="outline-button"
+            (click)="abrirFormulario()"
+          >
+            + Nuevo
+          </button>
+
+
+        </div>
+
+
+
+        <!-- CARGANDO -->
+
+        @if (cargando) {
+
+          <div class="state-card">
+
+            <div class="loading-circle"></div>
+
+            <span>
+              Cargando proyectos...
+            </span>
+
+          </div>
+
+        }
+
+
+
+        <!-- ERROR -->
+
+        @if (
+          error &&
+          !cargando
+        ) {
+
+          <div class="state-card error-card">
+
+            <strong>
+              {{ error }}
+            </strong>
+
+
+            <button
+              type="button"
+              (click)="cargarProyectos()"
+            >
+              Reintentar
+            </button>
+
+          </div>
+
+        }
+
+
+
+        <!-- SIN PROYECTOS -->
+
+        @if (
+          !cargando &&
+          !error &&
+          proyectos.length === 0
+        ) {
+
+          <div class="empty-projects">
+
+
+            <div class="empty-icon">
+              ◫
+            </div>
+
+
+            <h3>
+              Todavía no tienes proyectos
+            </h3>
+
+
+            <p>
+
+              Crea tu primer proyecto para comenzar
+              a diseñar tu sistema.
+
+            </p>
+
+
+            <button
+              type="button"
+              class="primary-button"
+              (click)="abrirFormulario()"
+            >
+              Crear mi primer proyecto
+            </button>
+
+
+          </div>
+
+        }
+
+
+
+        <!-- CON PROYECTOS -->
+
+        @if (
+          !cargando &&
+          proyectos.length > 0
+        ) {
+
+          <div class="project-grid">
+
+
+            @for (
+              proyecto of proyectos;
+              track proyecto.idProyecto
+            ) {
+
+              <article class="project-card">
+
+
+                <div class="project-card-top">
+
+
+                  <div class="project-icon">
+                    ▣
+                  </div>
+
+
+                  <span class="project-status">
+                    {{ proyecto.estado }}
+                  </span>
+
+
+                </div>
+
+
+                <h3>
+                  {{ proyecto.nombre }}
+                </h3>
+
+
+                <p class="project-description">
+
+                  {{
+                    proyecto.descripcion ||
+                    'Sin descripción'
+                  }}
+
+                </p>
+
+
+                <div class="project-footer">
+
+
+                  <div class="owner">
+
+
+                    <div class="small-avatar">
+
+                      {{
+                        proyecto.nombrePropietario
+                          ?.charAt(0) || 'U'
+                      }}
+
+                    </div>
+
+
+                    <span>
+                      {{ proyecto.nombrePropietario }}
+                    </span>
+
+
+                  </div>
+
+
+                  <button
+                    type="button"
+                    class="open-project"
+                    (click)="abrirProyecto(proyecto)"
+                  >
+                    Abrir →
+                  </button>
+
+
+                </div>
+
+
+              </article>
+
+            }
+
+
+          </div>
+
+        }
+
+
+      </section>
+
+
+
+      <!-- =================================================
+           ACTIVIDAD
+      ================================================== -->
+
+      <section class="activity-section">
+
+
+        <div class="section-title">
+
+
+          <div>
+
+            <span class="section-kicker">
+              SISTEMA
+            </span>
+
+
+            <h2>
+              Actividad reciente
+            </h2>
+
+          </div>
+
+
+        </div>
+
+
+        <div class="activity-card">
+
+
+          <div class="activity-item">
+
+
+            <div class="activity-dot"></div>
+
+
+            <div>
+
+              <strong>
+                Workspace disponible
+              </strong>
+
+
+              <p>
+                CodeForge AI está listo para comenzar
+                un nuevo proyecto.
+              </p>
+
+            </div>
+
+
+          </div>
+
+
+
+          <div class="activity-item">
+
+
+            <div class="activity-dot"></div>
+
+
+            <div>
+
+              <strong>
+                Editor UML
+              </strong>
+
+
+              <p>
+                Los proyectos se abrirán directamente
+                en el diagramador.
+              </p>
+
+            </div>
+
+
+          </div>
+
+
+        </div>
+
+
+      </section>
+
+
+    </main>
+
+  </div>
+
+
+
+  <!-- =====================================================
+       MODAL CREAR PROYECTO
+  ====================================================== -->
+
+  @if (mostrarFormulario) {
+
+    <div
+      class="modal-overlay"
+      (click)="cerrarFormulario()"
+    >
+
+
+      <div
+        class="project-modal"
+        (click)="$event.stopPropagation()"
+      >
+
+
+        <!-- CABECERA -->
+
+        <div class="modal-header">
+
+
+          <div>
+
+            <span class="section-kicker">
+              NUEVO PROYECTO
+            </span>
+
+
+            <h2>
+              Crear proyecto
+            </h2>
+
+
+            <p>
+              Define la información básica de tu proyecto.
+            </p>
+
+          </div>
+
+
+          <button
+            type="button"
+            class="modal-close"
+            (click)="cerrarFormulario()"
+          >
+            ×
+          </button>
+
+
+        </div>
+
+
+
+        <!-- NOMBRE -->
+
+        <div class="form-group">
+
+
+          <label for="project-name">
+            Nombre del proyecto
+          </label>
+
+
+          <input
+            id="project-name"
+            type="text"
+            name="projectName"
+            [(ngModel)]="nuevoProyecto.nombre"
+            placeholder="Ej. Sistema Veterinario"
+            maxlength="150"
+          >
+
+
+        </div>
+
+
+
+        <!-- DESCRIPCIÓN -->
+
+        <div class="form-group">
+
+
+          <label for="project-description">
+            Descripción
+          </label>
+
+
+          <textarea
+            id="project-description"
+            name="projectDescription"
+            [(ngModel)]="nuevoProyecto.descripcion"
+            placeholder="Describe brevemente qué vas a construir..."
+            maxlength="500"
+            rows="5"
+          ></textarea>
+
+
+        </div>
+
+
+
+        <!-- ERROR -->
+
+        @if (errorCreacion) {
+
+          <div class="form-error">
+
+            {{ errorCreacion }}
+
+          </div>
+
+        }
+
+
+
+        <!-- BOTONES -->
+
+        <div class="modal-footer">
+
+
+          <button
+            type="button"
+            class="cancel-button"
+            (click)="cerrarFormulario()"
+          >
+            Cancelar
+          </button>
+
+
+          <button
+            type="button"
+            class="create-button"
+            [disabled]="creandoProyecto"
+            (click)="crearProyecto()"
+          >
+
+            {{
+              creandoProyecto
+                ? 'Creando...'
+                : 'Crear y abrir'
+            }}
+
+          </button>
+
+
+        </div>
+
+
+      </div>
+
+    </div>
+
+  }
+
+</div>

@@ -1,0 +1,67 @@
+# =========================
+# Angular / Node
+# =========================
+/dist
+/tmp
+/out-tsc
+/out-tsc
+/bazel-out
+
+/node_modules
+npm-debug.log
+yarn-error.log
+
+/.angular/cache
+.sass-cache/
+/coverage
+/typings
+__screenshots__/
+
+# =========================
+# Spring Boot / Java
+# =========================
+**/target/
+*.class
+
+# Maven
+**/.mvn/
+
+# =========================
+# IDEs and editors
+# =========================
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# =========================
+# Visual Studio Code
+# =========================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/mcp.json
+.history/
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# System files
+# =========================
+.DS_Store
+Thumbs.db

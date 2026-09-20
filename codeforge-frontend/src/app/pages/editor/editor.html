@@ -1,0 +1,1922 @@
+<div class="editor-page">
+
+  <!-- ===================================================== -->
+  <!-- TOPBAR                                                -->
+  <!-- ===================================================== -->
+  <header class="editor-topbar">
+    <div class="topbar-left">
+      <button type="button" class="back-button" (click)="volverDashboard()" title="Volver a la lista de proyectos">
+        <span class="back-arrow">←</span> Proyectos
+      </button>
+
+      <div class="editor-title">
+        <span class="brand-badge">UML</span>
+        @if (proyecto) {
+        <strong>{{ proyecto.nombre }}</strong>
+        <span class="model-version">v{{ modeloActual?.version || '1.0' }}</span>
+        } @else {
+        <strong>CodeForge UML Studio</strong>
+        }
+      </div>
+    </div>
+
+    <!-- Banner Modo Conexión Activo -->
+    @if (modoConexion) {
+    <div class="mode-badge mode-badge--connection">
+      <span class="pulse-dot"></span>
+      @if (!origenConexion) {
+      <span>1. Haz clic en la clase <strong>ORIGEN</strong></span>
+      } @else {
+      <span>2. Haz clic en la clase <strong>DESTINO</strong> (Origen: {{ origenConexion.nombre }})</span>
+      }
+      <button type="button" class="mode-cancel" (click)="cancelarModoConexion()">Cancelar (Esc)</button>
+    </div>
+    } @else {
+    <div class="drag-hint">
+      <span>💡 Arrastra desde el círculo <strong>●</strong> de una clase hacia otra para relacionarlas</span>
+    </div>
+    }
+
+    <div class="editor-actions">
+      @if (sincronizadoEnVivo) {
+      <span class="sync-badge" title="Cambios sincronizados en tiempo real">
+        ⚡ Sincronizado
+      </span>
+      }
+
+      @if (proyecto) {
+      <div class="collab-cursor-badge" [title]="'Tu cursor en vivo (' + miColor + ')'">
+        <span class="collab-cursor-dot" [style.background]="miColor"></span>
+        <span class="collab-cursor-text">En vivo</span>
+        @if (listaCursoresRemotos.length > 0) {
+        <span class="collab-remote-count">+{{ listaCursoresRemotos.length }}</span>
+        }
+      </div>
+
+      <button type="button" class="collaborators-button" (click)="abrirColaboradores()">
+        <span class="collab-icon">👥</span> Colaboradores
+        <span class="collab-count">{{ colaboradores.length }}</span>
+      </button>
+      <button type="button" class="generate-backend-button" (click)="generarBackend()"
+        [disabled]="generandoBackend || !modeloActual">
+        @if (generandoBackend) {
+        ⏳ Generando...
+        } @else {
+        ⚙ Generar Backend
+        }
+      </button>
+      <span class="editor-status status--active">
+        ● {{ proyecto.estado || 'ACTIVO' }}
+      </span>
+      }
+
+    </div>
+  </header>
+
+
+  <!-- ===================================================== -->
+  <!-- ESPACIO DE TRABAJO PRINCIPAL (SIEMPRE EN DOM)         -->
+  <!-- ===================================================== -->
+  <main class="editor-workspace">
+
+    <!-- =================================================== -->
+    <!-- PANEL IZQUIERDO: CAJA DE HERRAMIENTAS UML            -->
+    <!-- =================================================== -->
+    <aside class="left-panel">
+
+      <!-- Info del Proyecto -->
+      <div class="panel-section">
+        <span class="panel-label">PROYECTO</span>
+        <h2 class="project-heading">{{ proyecto?.nombre || 'Cargando...' }}</h2>
+        <p class="project-desc">{{ proyecto?.descripcion || 'Diagramador UML con generación backend' }}</p>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- HERRAMIENTAS DE ELEMENTOS UML -->
+      <!-- HERRAMIENTAS DE ELEMENTOS UML -->
+      <div class="panel-section">
+
+        <span class="panel-label">
+          ELEMENTOS UML
+        </span>
+
+        <div class="tools-grid">
+
+          <button type="button" class="tool-button tool-button--class" (click)="abrirModalElemento('CLASE')"
+            title="Agregar Clase UML con atributos y operaciones">
+
+            <span class="tool-icon">
+              ▤
+            </span>
+
+            <div class="tool-info">
+
+              <strong>
+                + Clase
+              </strong>
+
+              <small>
+                Estructura y datos
+              </small>
+
+            </div>
+
+          </button>
+
+
+          <button type="button" class="tool-button tool-button--interface" (click)="abrirModalElemento('INTERFACE')"
+            title="Agregar Interfaz UML">
+
+            <span class="tool-icon">
+              ◇
+            </span>
+
+            <div class="tool-info">
+
+              <strong>
+                + Interfaz
+              </strong>
+
+              <small>
+                «interface»
+              </small>
+
+            </div>
+
+          </button>
+
+
+          <button type="button" class="tool-button tool-button--enum" (click)="abrirModalElemento('ENUM')"
+            title="Agregar Enumeración UML">
+
+            <span class="tool-icon">
+              ◈
+            </span>
+
+            <div class="tool-info">
+
+              <strong>
+                + Enumeración
+              </strong>
+
+              <small>
+                «enum»
+              </small>
+
+            </div>
+
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="panel-divider"></div>
+
+
+      <!-- ===================================================== -->
+      <!-- IMPORTAR / EXPORTAR                                  -->
+      <!-- ===================================================== -->
+
+      <div class="panel-section">
+
+        <span class="panel-label">
+          INTERCAMBIO
+        </span>
+
+
+        <div class="tools-grid intercambio-grid">
+          <div class="tools-grid intercambio-grid">
+
+            <button type="button" class="tool-button intercambio-button" (click)="exportarXmi()"
+              title="Exportar el modelo UML como XMI">
+              <span class="tool-icon">⇧</span>
+
+              <div class="tool-info">
+                <strong>Exportar XMI</strong>
+                <small>Enterprise Architect</small>
+              </div>
+            </button>
+
+            <input #inputXmi type="file" accept=".xmi,.xml,application/xml,text/xml" hidden
+              (change)="importarXmi($event)" />
+
+            <button type="button" class="tool-button intercambio-button" (click)="abrirImportadorXmi(inputXmi)"
+              title="Importar un modelo UML desde XMI">
+              <span class="tool-icon">⇩</span>
+
+              <div class="tool-info">
+                <strong>Importar XMI</strong>
+                <small>Enterprise Architect</small>
+              </div>
+            </button>
+
+          </div>
+
+          <!-- EXPORTAR JSON -->
+
+          <button type="button" class="tool-button intercambio-button" (click)="exportarJson()"
+            title="Exportar el modelo UML como JSON">
+
+            <span class="tool-icon">
+              ⇧
+            </span>
+
+            <div class="tool-info">
+
+              <strong>
+                Exportar JSON
+              </strong>
+
+              <small>
+                Guardar modelo
+              </small>
+
+            </div>
+
+          </button>
+
+
+          <!-- IMPORTAR JSON -->
+
+          <input #inputJson type="file" accept=".json,application/json" hidden (change)="importarJson($event)" />
+
+          <button type="button" class="tool-button intercambio-button" (click)="abrirImportadorJson(inputJson)"
+            title="Importar un modelo UML desde JSON">
+
+            <span class="tool-icon">
+              ⇩
+            </span>
+
+            <div class="tool-info">
+
+              <strong>
+                Importar JSON
+              </strong>
+
+              <small>
+                Abrir modelo
+              </small>
+
+            </div>
+
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="panel-divider"></div>
+
+      <!-- ===================================================== -->
+      <!-- INTELIGENCIA ARTIFICIAL                               -->
+      <!-- ===================================================== -->
+      <div class="panel-section">
+        <span class="panel-label">ASISTENTE IA</span>
+
+        <input #inputImagenIA type="file" accept="image/png,image/jpeg,image/jpg,image/webp" hidden
+          (change)="generarUmlDesdeImagen($event)" />
+
+        <div class="ai-image-panel">
+          <div class="ai-image-panel__icon">✦</div>
+
+          <div class="ai-image-panel__content">
+            <strong>Imagen → UML</strong>
+            <small>
+              Analiza un diseño UML con IA y agrega automáticamente
+              clases, atributos, operaciones y relaciones.
+            </small>
+          </div>
+        </div>
+
+        <button type="button" class="tool-button intercambio-button" (click)="inputImagenIA.click()"
+          [disabled]="iaProcesando || !modeloActual" title="Generar elementos UML desde una imagen">
+          <span class="tool-icon">✦</span>
+
+          <div class="tool-info">
+            <strong>
+              {{ iaProcesando ? 'Procesando imagen...' : 'Analizar imagen UML' }}
+            </strong>
+            <small>
+              {{ iaProcesando ? 'Gemini Vision en ejecución' : 'PNG, JPG, JPEG o WEBP' }}
+            </small>
+          </div>
+        </button>
+
+        @if (iaProcesando) {
+        <div class="cf-message" style="margin-top: 8px;">
+          <strong>IA en ejecución.</strong>
+          No cierres el editor mientras se genera el modelo.
+        </div>
+        }
+
+        <button type="button" class="tool-button intercambio-button"
+          (click)="audioGrabando ? detenerGrabacionUmlPorAudio() : iniciarGrabacionUmlPorAudio()"
+          [disabled]="iaProcesando || audioProcesando || !modeloActual"
+          title="Crear UML mediante una instrucción de voz" [class.tool-button--active]="audioGrabando"
+          style="margin-top:10px;">
+          <span class="tool-icon">{{ audioGrabando ? '⏹' : '🎙' }}</span>
+          <div class="tool-info">
+            <strong>
+              @if (audioGrabando) {
+              Detener grabación
+              } @else if (audioProcesando) {
+              Procesando voz...
+              } @else {
+              Crear UML por voz
+              }
+            </strong>
+            <small>
+              @if (audioGrabando) {
+              Grabando {{ audioSegundosGrabacion }}s · habla ahora
+              } @else if (audioProcesando) {
+              Gemini IA generando el diagrama
+              } @else {
+              Habla y describe las clases y relaciones
+              }
+            </small>
+          </div>
+        </button>
+
+        @if (audioGrabando) {
+        <div class="cf-message" style="margin-top:8px; border-color:#7c3aed; background:rgba(124,58,237,.12);">
+          <strong>🎙 Micrófono activo.</strong>
+          Ejemplo: “Crea una clase Cliente con id Long y nombre String, y relaciónala con Factura en uno a muchos”.
+          <div style="margin-top:5px;">La grabación se detendrá automáticamente a los 120 segundos.</div>
+        </div>
+        }
+
+        @if (audioProcesando) {
+        <div class="cf-message" style="margin-top:8px;">
+          <strong>⏳ Procesando instrucción de voz...</strong>
+          La IA está transformando tu descripción en elementos UML.
+        </div>
+        }
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- HERRAMIENTAS DE RELACIONES -->
+      <div class="panel-section">
+        <span class="panel-label">RELACIONES UML</span>
+        <div class="relation-actions">
+          <button type="button" class="tool-button" [class.tool-button--active]="modoConexion"
+            (click)="modoConexion ? cancelarModoConexion() : activarModoConexion()"
+            title="Haz clic en dos clases para conectarlas visualmente">
+            <span class="tool-icon">🔗</span>
+            <div class="tool-info">
+              <strong>{{ modoConexion ? 'Cancelar Conexión' : 'Conectar Clases' }}</strong>
+              <small>Modo interactivo en lienzo</small>
+            </div>
+          </button>
+
+          <button type="button" class="tool-button" (click)="abrirModalRelacion()"
+            title="Crear relación con formulario completo">
+            <span class="tool-icon">↗</span>
+            <div class="tool-info">
+              <strong>+ Nueva Relación</strong>
+              <small>Herencia, Composición, etc.</small>
+            </div>
+          </button>
+        </div>
+
+        <!-- Leyenda de Tipos de Relación -->
+        <div class="relation-legend">
+          <span class="legend-title">TIPOS DE RELACIÓN</span>
+          <div class="legend-item" title="Herencia (Generalización): Flecha hueca sólida">
+            <span class="legend-dot" style="background:#f59e0b;"></span>
+            <span class="legend-label">Generalización / Herencia</span>
+            <span class="legend-symbol">──▷</span>
+          </div>
+          <div class="legend-item" title="Realización / Implementación: Flecha hueca punteada">
+            <span class="legend-dot" style="background:#a78bfa;"></span>
+            <span class="legend-label">Realización (Interfaz)</span>
+            <span class="legend-symbol">╌╌▷</span>
+          </div>
+          <div class="legend-item" title="Agregación: Rombo hueco en el contenedor">
+            <span class="legend-dot" style="background:#38bdf8;"></span>
+            <span class="legend-label">Agregación</span>
+            <span class="legend-symbol">◇──</span>
+          </div>
+          <div class="legend-item" title="Composición: Rombo relleno en el contenedor">
+            <span class="legend-dot" style="background:#f43f5e;"></span>
+            <span class="legend-label">Composición</span>
+            <span class="legend-symbol">◆──</span>
+          </div>
+          <div class="legend-item" title="Dependencia: Flecha simple punteada">
+            <span class="legend-dot" style="background:#94a3b8;"></span>
+            <span class="legend-label">Dependencia</span>
+            <span class="legend-symbol">╌╌></span>
+          </div>
+          <div class="legend-item" title="Asociación: Línea continua con multiplicidad">
+            <span class="legend-dot" style="background:#cbd5e1;"></span>
+            <span class="legend-label">Asociación</span>
+            <span class="legend-symbol">───></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- LISTA DE CLASES DEL MODELO -->
+      <div class="panel-section panel-section--grow">
+        <div class="section-title-row">
+          <span class="panel-label">ELEMENTOS ({{ elementos.length }})</span>
+        </div>
+
+        @if (elementos.length === 0) {
+        <p class="empty-hint">No hay elementos creados aún.</p>
+        } @else {
+        <div class="class-list">
+          @for (elem of elementos; track elem.id) {
+          <div class="class-list-item" [class.class-list-item--selected]="elementoSeleccionado?.id === elem.id"
+            (click)="seleccionarElemento(elem.id)">
+            <span class="class-list-badge" [class.badge--interface]="elem.tipo === 'INTERFACE'"
+              [class.badge--enum]="elem.tipo === 'ENUM'">
+              {{ elem.tipo === 'INTERFACE' ? 'I' : elem.tipo === 'ENUM' ? 'E' : 'C' }}
+            </span>
+            <span class="class-list-name">{{ elem.nombre }}</span>
+            <span class="class-list-count">{{ (elem.atributos?.length ?? 0) + (elem.operaciones?.length ?? 0) }}</span>
+          </div>
+          }
+        </div>
+        }
+      </div>
+
+    </aside>
+
+
+    <!-- =================================================== -->
+    <!-- CANVAS CENTRAL (JOINTJS UML)                         -->
+    <!-- =================================================== -->
+    <section class="canvas" [class.canvas--connection-mode]="modoConexion">
+
+      <div class="canvas-grid"></div>
+
+      <!-- CONTENEDOR JOINTJS (SIEMPRE DISPONIBLE EN EL DOM) -->
+      <div #umlCanvas class="uml-canvas"></div>
+
+      <!-- CAPA DE CURSORES REMOTOS EN TIEMPO REAL -->
+      <div class="cursores-layer">
+        @for (cursor of listaCursoresRemotos; track cursor.usuarioId) {
+        <div class="cursor-remoto"
+             [style.left.px]="cursor.x"
+             [style.top.px]="cursor.y"
+             [style.--cursor-color]="cursor.color">
+          <svg class="cursor-puntero" viewBox="0 0 24 24" width="20" height="20">
+            <path d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
+                  [attr.fill]="cursor.color"
+                  stroke="#ffffff"
+                  stroke-width="1.2"
+                  stroke-linejoin="round" />
+          </svg>
+          @if (cursor.nombre) {
+          <span class="cursor-etiqueta" [style.background]="cursor.color">
+            {{ cursor.nombre }}
+          </span>
+          }
+        </div>
+        }
+      </div>
+
+      <!-- TOOLBAR FLOTANTE DEL CANVAS CON CONTROLES DE ZOOM -->
+      <div class="canvas-toolbar">
+        <button type="button" class="toolbar-btn" (click)="abrirModalElemento('CLASE')" title="Crear nueva clase">
+          + Clase
+        </button>
+
+        <button type="button" class="toolbar-btn" (click)="abrirModalRelacion()" title="Crear relación">
+          + Relación
+        </button>
+
+        <span class="toolbar-separator"></span>
+
+        <button type="button" class="toolbar-btn" (click)="zoomOut()" title="Alejar (Zoom Out / Rueda abajo)">
+          −
+        </button>
+
+        <button type="button" class="toolbar-btn toolbar-zoom" (click)="zoomReset()"
+          title="Restablecer zoom a 100% y centrar">
+          {{ obtenerPorcentajeZoom() }}%
+        </button>
+
+        <button type="button" class="toolbar-btn" (click)="zoomIn()" title="Acercar (Zoom In / Rueda arriba)">
+          +
+        </button>
+
+        <span class="toolbar-separator"></span>
+
+        <button type="button" class="toolbar-btn" (click)="centrarDiagrama()"
+          title="Centrar y ajustar diagrama en la pantalla">
+          ⛶ Centrar
+        </button>
+      </div>
+
+      <!-- Overlay de bienvenida cuando no hay elementos -->
+      @if (!hayElementos() && !cargando && !cargandoModelo) {
+      <div class="canvas-welcome">
+        <div class="canvas-icon">◈</div>
+        <span class="panel-label">EDITOR UML PROFESIONAL</span>
+        <h1>{{ proyecto?.nombre || 'Lienzo UML' }}</h1>
+        <p>Diseña tu arquitectura de software con clases, interfaces, métodos, atributos y relaciones cardinales.</p>
+        <div class="welcome-actions">
+          <button type="button" class="start-button" (click)="abrirModalElemento('CLASE')">
+            + Crear primera Clase
+          </button>
+          <button type="button" class="start-button start-button--secondary" (click)="abrirModalElemento('INTERFACE')">
+            + Crear Interfaz
+          </button>
+        </div>
+      </div>
+      }
+
+      <!-- Spinner Overlay durante carga inicial -->
+      @if (cargando && !proyecto) {
+      <div class="canvas-loading-overlay">
+        <div class="spinner"></div>
+        <p>Cargando proyecto y modelo UML...</p>
+      </div>
+      }
+
+      <!-- Error Overlay -->
+      @if (error && !cargando) {
+      <div class="canvas-loading-overlay canvas-loading-overlay--error">
+        <div class="state-icon">⚠️</div>
+        <h2>No se pudo abrir el proyecto</h2>
+        <p>{{ error }}</p>
+        <button type="button" class="btn-primary" (click)="volverDashboard()">
+          Volver a proyectos
+        </button>
+      </div>
+      }
+
+    </section>
+
+
+    <!-- =================================================== -->
+    <!-- PANEL DERECHO: INSPECTOR Y EDICIÓN DE PROPIEDADES   -->
+    <!-- =================================================== -->
+    <aside class="right-panel">
+
+      <!-- ================================================= -->
+      <!-- CASO 1: ELEMENTO UML SELECCIONADO (EDICIÓN EN VIVO) -->
+      <!-- ================================================= -->
+      @if (elementoSeleccionado) {
+      <div class="uml-properties">
+
+        <!-- Encabezado del elemento -->
+        <div class="props-header">
+          <div>
+            <span class="props-type-badge" [class.badge--interface]="elementoSeleccionado.tipo === 'INTERFACE'"
+              [class.badge--enum]="elementoSeleccionado.tipo === 'ENUM'">
+              {{ elementoSeleccionado.tipo }}
+            </span>
+            <h3 class="props-title">{{ elementoSeleccionado.nombre }}</h3>
+          </div>
+
+          <button type="button" class="btn-delete" (click)="eliminarElemento(elementoSeleccionado.id)"
+            title="Eliminar elemento">
+            🗑️
+          </button>
+        </div>
+
+        <!-- FORMULARIO DE EDICIÓN RÁPIDA DE LA CLASE / ELEMENTO -->
+        <div class="element-edit-form">
+          <div class="cf-field">
+            <label for="editElemNombre">Nombre de la Clase</label>
+            <input id="editElemNombre" type="text" class="cf-input cf-input--compact"
+              [(ngModel)]="elementoSeleccionado.nombre" (change)="guardarEdicionElemento()"
+              (blur)="guardarEdicionElemento()" placeholder="Ej: Cliente" />
+          </div>
+
+          <div class="cf-fields-row">
+            <div class="cf-field">
+              <label for="editElemVis">Visibilidad</label>
+              <select id="editElemVis" class="cf-select cf-select--compact"
+                [(ngModel)]="elementoSeleccionado.visibilidad" (change)="guardarEdicionElemento()">
+                <option value="PUBLIC">PUBLIC (+)</option>
+                <option value="PACKAGE">PACKAGE (~)</option>
+                <option value="PROTECTED">PROTECTED (#)</option>
+                <option value="PRIVATE">PRIVATE (-)</option>
+              </select>
+            </div>
+
+            <div class="cf-field">
+              <label for="editElemEst">Estereotipo</label>
+              <input id="editElemEst" type="text" class="cf-input cf-input--compact"
+                [(ngModel)]="elementoSeleccionado.estereotipo" (change)="guardarEdicionElemento()"
+                (blur)="guardarEdicionElemento()" placeholder="entity, service..." />
+            </div>
+          </div>
+
+          @if (elementoSeleccionado.tipo === 'CLASE') {
+          <div class="cf-check-group cf-check-group--compact">
+            <label class="cf-check">
+              <input type="checkbox" [(ngModel)]="elementoSeleccionado.abstracto" (change)="guardarEdicionElemento()" />
+              <span>☑ Abstracta</span>
+            </label>
+
+            <label class="cf-check">
+              <input type="checkbox" [(ngModel)]="elementoSeleccionado.finalElemento"
+                (change)="guardarEdicionElemento()" />
+              <span>Final</span>
+            </label>
+          </div>
+          }
+        </div>
+
+        <div class="panel-divider"></div>
+
+        <!-- SECCIÓN ATRIBUTOS (CON EDICIÓN Y ELIMINACIÓN) -->
+        <div class="property-section">
+          <div class="section-header">
+            <div>
+              <span class="panel-label">ATRIBUTOS</span>
+              <span class="section-count">({{ elementoSeleccionado.atributos?.length ?? 0 }})</span>
+            </div>
+            <button type="button" class="btn-add" (click)="abrirModalAtributo()">
+              + Atributo
+            </button>
+          </div>
+
+          @if ((elementoSeleccionado.atributos?.length ?? 0) === 0) {
+          <div class="props-empty">
+            <small>Sin atributos definidos</small>
+          </div>
+          } @else {
+          <div class="props-list">
+            @for (atr of elementoSeleccionado.atributos; track atr.id) {
+            <div class="props-item">
+              <div class="props-item-info">
+                <span class="vis-symbol" [title]="atr.visibilidad || 'PRIVATE'">
+                  {{ simboloVisibilidad(atr.visibilidad) }}
+                </span>
+                <strong>{{ atr.derivado ? '/' : '' }}{{ atr.nombre }}</strong>
+                <span class="props-type">: {{ atr.tipo }}</span>
+                @if (atr.multiplicidad && atr.multiplicidad !== '1') {
+                <span class="props-multiplicity">[{{ atr.multiplicidad }}]</span>
+                }
+                @if (atr.estatico) {
+                <span class="props-tag">static</span>
+                }
+              </div>
+
+              <div class="props-item-actions">
+                <button type="button" class="btn-edit-small" (click)="abrirModalEditarAtributo(atr)"
+                  title="Editar atributo">
+                  ✏️
+                </button>
+                <button type="button" class="btn-delete-small" (click)="eliminarAtributo(atr.id)"
+                  title="Eliminar atributo">
+                  ×
+                </button>
+              </div>
+            </div>
+            }
+          </div>
+          }
+        </div>
+
+        <div class="panel-divider"></div>
+
+        <!-- SECCIÓN OPERACIONES / MÉTODOS (CON EDICIÓN Y ELIMINACIÓN) -->
+        <div class="property-section">
+          <div class="section-header">
+            <div>
+              <span class="panel-label">OPERACIONES (MÉTODOS)</span>
+              <span class="section-count">({{ elementoSeleccionado.operaciones?.length ?? 0 }})</span>
+            </div>
+            <button type="button" class="btn-add" (click)="abrirModalOperacion()">
+              + Operación
+            </button>
+          </div>
+
+          @if ((elementoSeleccionado.operaciones?.length ?? 0) === 0) {
+          <div class="props-empty">
+            <small>Sin operaciones definidas</small>
+          </div>
+          } @else {
+          <div class="props-list">
+            @for (op of elementoSeleccionado.operaciones; track op.id) {
+            <div class="props-item">
+              <div class="props-item-info">
+                <span class="vis-symbol" [title]="op.visibilidad || 'PUBLIC'">
+                  {{ simboloVisibilidad(op.visibilidad) }}
+                </span>
+                <strong>{{ op.nombre }}({{ formatearParametrosOperacion(op) }})</strong>
+                <span class="props-type">: {{ op.tipoRetorno || 'void' }}</span>
+                @if (op.estatica) {
+                <span class="props-tag">static</span>
+                }
+                @if (op.abstracta) {
+                <span class="props-tag">abstract</span>
+                }
+              </div>
+
+              <div class="props-item-actions">
+                <button type="button" class="btn-edit-small" (click)="abrirModalEditarOperacion(op)"
+                  title="Editar operación">
+                  ✏️
+                </button>
+                <button type="button" class="btn-delete-small" (click)="eliminarOperacion(op.id)"
+                  title="Eliminar operación">
+                  ×
+                </button>
+              </div>
+            </div>
+            }
+          </div>
+          }
+        </div>
+
+        <div class="panel-divider"></div>
+
+        <!-- ACCIONES RÁPIDAS -->
+        <div class="props-actions">
+          <button type="button" class="btn-action btn-action--relation"
+            (click)="abrirModalRelacion(elementoSeleccionado.id)">
+            🔗 Crear relación desde esta clase
+          </button>
+        </div>
+
+      </div>
+      }
+
+      <!-- ================================================= -->
+      <!-- CASO 2: RELACIÓN SELECCIONADA (EDICIÓN EN VIVO)   -->
+      <!-- ================================================= -->
+      @else if (relacionSeleccionada) {
+      <div class="uml-properties">
+
+        <div class="props-header">
+          <div>
+            <span class="props-type-badge badge--relation">
+              {{ relacionSeleccionada.tipo }}
+            </span>
+            <h3 class="props-title">Editar Relación UML</h3>
+          </div>
+
+          <button type="button" class="btn-delete" (click)="eliminarRelacion(relacionSeleccionada.id)"
+            title="Eliminar relación">
+            🗑️
+          </button>
+        </div>
+
+        <!-- FORMULARIO DE EDICIÓN DE RELACIÓN EN VIVO -->
+        <div class="relation-edit-form">
+          <div class="cf-field">
+            <label for="editRelTipo">Tipo de Relación</label>
+            <select id="editRelTipo" class="cf-select cf-select--compact" [(ngModel)]="relacionSeleccionada.tipo"
+              (change)="guardarEdicionRelacion()">
+              <option value="ASOCIACION">Asociación (────>)</option>
+              <option value="GENERALIZACION">Generalización / Herencia (────▷)</option>
+              <option value="REALIZACION">Realización / Interfaz (╌╌╌▷)</option>
+              <option value="AGREGACION">Agregación (◇───)</option>
+              <option value="COMPOSICION">Composición (◆───)</option>
+              <option value="DEPENDENCIA">Dependencia (╌╌╌>)</option>
+            </select>
+          </div>
+
+          <div class="cf-fields-row">
+            <div class="cf-field">
+              <label for="editRelOrigen">Origen</label>
+              <select id="editRelOrigen" class="cf-select cf-select--compact" [(ngModel)]="relacionSeleccionada.origen"
+                (change)="guardarEdicionRelacion()">
+                @for (elem of elementos; track elem.id) {
+                <option [value]="elem.id">{{ elem.nombre }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="cf-field">
+              <label for="editRelDestino">Destino</label>
+              <select id="editRelDestino" class="cf-select cf-select--compact"
+                [(ngModel)]="relacionSeleccionada.destino" (change)="guardarEdicionRelacion()">
+                @for (elem of elementos; track elem.id) {
+                <option [value]="elem.id" [disabled]="elem.id === relacionSeleccionada.origen">
+                  {{ elem.nombre }}
+                </option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="cf-fields-row">
+            <div class="cf-field">
+              <label for="editRelMultO">Multiplicidad Origen</label>
+              <select id="editRelMultO" class="cf-select cf-select--compact"
+                [(ngModel)]="relacionSeleccionada.multiplicidadOrigen" (change)="guardarEdicionRelacion()">
+                <option value="1">1</option>
+                <option value="0..1">0..1</option>
+                <option value="*">*</option>
+                <option value="0..*">0..*</option>
+                <option value="1..*">1..*</option>
+              </select>
+            </div>
+
+            <div class="cf-field">
+              <label for="editRelMultD">Multiplicidad Destino</label>
+              <select id="editRelMultD" class="cf-select cf-select--compact"
+                [(ngModel)]="relacionSeleccionada.multiplicidadDestino" (change)="guardarEdicionRelacion()">
+                <option value="1">1</option>
+                <option value="0..1">0..1</option>
+                <option value="*">*</option>
+                <option value="0..*">0..*</option>
+                <option value="1..*">1..*</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="cf-fields-row">
+            <div class="cf-field">
+              <label for="editRelRolO">Rol Origen</label>
+              <input id="editRelRolO" type="text" class="cf-input cf-input--compact"
+                [(ngModel)]="relacionSeleccionada.rolOrigen" (change)="guardarEdicionRelacion()"
+                (blur)="guardarEdicionRelacion()" placeholder="Ej: autor" />
+            </div>
+
+            <div class="cf-field">
+              <label for="editRelRolD">Rol Destino</label>
+              <input id="editRelRolD" type="text" class="cf-input cf-input--compact"
+                [(ngModel)]="relacionSeleccionada.rolDestino" (change)="guardarEdicionRelacion()"
+                (blur)="guardarEdicionRelacion()" placeholder="Ej: libros" />
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-divider"></div>
+
+        <div class="props-actions">
+          <button type="button" class="btn-action btn-action--danger"
+            (click)="eliminarRelacion(relacionSeleccionada.id)">
+            Eliminar esta relación
+          </button>
+        </div>
+
+      </div>
+      }
+
+      <!-- ================================================= -->
+      <!-- CASO 3: NADA SELECCIONADO                         -->
+      <!-- ================================================= -->
+      @else {
+      <div class="properties-empty">
+        <div class="properties-icon">◇</div>
+        <h3>Inspector UML</h3>
+        <p>Selecciona una clase, interfaz o relación en el lienzo para inspeccionar y modificar sus atributos, métodos o
+          cardinalidades.</p>
+
+        <div class="quick-actions">
+          <button type="button" class="btn-add-block" (click)="abrirModalElemento('CLASE')">
+            + Nueva Clase
+          </button>
+          <button type="button" class="btn-add-block btn-add-block--outline" (click)="abrirModalRelacion()">
+            + Nueva Relación
+          </button>
+        </div>
+      </div>
+      }
+
+      <!-- TARJETA ASISTENTE IA -->
+      <div class="ai-mini-card">
+        <div class="ai-mini-header">
+          <div class="ai-mini-icon">✦</div>
+          <strong>Asistente IA de CodeForge</strong>
+        </div>
+
+        <p>
+          Pregunta cómo utilizar CodeForge, qué hace cada herramienta
+          o cómo trabajar con tu modelo UML actual.
+        </p>
+
+        <button type="button" class="btn-action btn-action--relation" style="width:100%; margin-top:10px;"
+          (click)="abrirAsistente()">
+          ✦ Abrir asistente de ayuda
+        </button>
+
+        @if (iaProcesando) {
+        <small style="display:block; margin-top:8px;">
+          ⏳ Analizando imagen y construyendo UML...
+        </small>
+        }
+
+        @if (audioProcesando) {
+        <small style="display:block; margin-top:8px;">
+          🎙 Procesando instrucción de voz y construyendo UML...
+        </small>
+        }
+      </div>
+
+    </aside>
+
+  </main>
+
+</div>
+
+
+<!-- ========================================================= -->
+<!-- MODAL: AGENTE DE AYUDA DE CODEFORGE                      -->
+<!-- ========================================================= -->
+@if (asistenteAbierto) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarAsistente()" style="z-index:1200;">
+  <div class="cf-modal-box" (click)="$event.stopPropagation()"
+    style="width:min(760px, 94vw); max-width:760px; padding:0; overflow:hidden;">
+    <div class="cf-modal-header"
+      style="padding:18px 20px; background:linear-gradient(135deg,#151b3a,#20275b); color:#fff;">
+      <div>
+        <span class="panel-label" style="color:#b9c3ff;">CODEFORGE · ASISTENCIA</span>
+        <h2 style="margin:4px 0 0;">✦ Agente de Ayuda</h2>
+        <p style="margin-top:5px;">Pregunta cómo usar el sistema o qué significa cualquier herramienta.</p>
+      </div>
+
+      <button type="button" class="cf-close" (click)="cerrarAsistente()" [disabled]="asistenteProcesando"
+        title="Cerrar asistente">
+        ×
+      </button>
+    </div>
+
+    <div id="mensajesAsistente" style="height:420px; overflow-y:auto; padding:16px; background:#0c1220;">
+      @if (mensajesAsistente.length === 0) {
+      <div style="padding:30px; text-align:center; opacity:.75;">
+        Escribe una pregunta para comenzar.
+      </div>
+      }
+
+      @for (mensaje of mensajesAsistente; track mensaje.id) {
+      <div style="display:flex; margin-bottom:12px;"
+        [style.justify-content]="mensaje.rol === 'usuario' ? 'flex-end' : 'flex-start'">
+        <div style="max-width:82%; padding:11px 13px; border-radius:12px; line-height:1.45; white-space:pre-wrap;"
+          [style.background]="mensaje.rol === 'usuario' ? '#4f46e5' : '#182135'" [style.color]="'#fff'"
+          [style.border]="mensaje.rol === 'usuario' ? '1px solid #6366f1' : '1px solid #2a3855'">
+          <div style="font-size:11px; opacity:.7; margin-bottom:4px;">
+            {{ mensaje.rol === 'usuario' ? 'TÚ' : 'CODEFORGE IA' }}
+          </div>
+          <div>{{ mensaje.contenido }}</div>
+        </div>
+      </div>
+      }
+
+      @if (asistenteProcesando) {
+      <div style="display:flex; justify-content:flex-start; margin-bottom:12px;">
+        <div
+          style="max-width:82%; padding:11px 13px; border-radius:12px; background:#182135; border:1px solid #2a3855; color:#fff;">
+          <div style="font-size:11px; opacity:.7; margin-bottom:4px;">CODEFORGE IA</div>
+          <span>⏳ Pensando...</span>
+        </div>
+      </div>
+      }
+    </div>
+
+    <div style="padding:12px 16px 8px; background:#10182a; border-top:1px solid #26324a;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        @for (sugerencia of sugerenciasAsistente; track sugerencia) {
+        <button type="button" class="toolbar-btn" style="font-size:11px;" (click)="usarSugerenciaAsistente(sugerencia)"
+          [disabled]="asistenteProcesando">
+          {{ sugerencia }}
+        </button>
+        }
+      </div>
+
+      <form (submit)="$event.preventDefault(); preguntarAlAsistente()" style="display:flex; gap:8px;">
+        <input id="preguntaAsistente" type="text" class="cf-input" style="flex:1;" [(ngModel)]="preguntaAsistente"
+          name="preguntaAsistente" placeholder="Escribe tu pregunta sobre CodeForge..." [disabled]="asistenteProcesando"
+          autocomplete="off" />
+
+        <button type="submit" class="cf-btn cf-btn--primary"
+          [disabled]="asistenteProcesando || !preguntaAsistente.trim()">
+          {{ asistenteProcesando ? '...' : 'Enviar' }}
+        </button>
+      </form>
+
+      <small style="display:block; margin-top:8px; opacity:.65;">
+        El asistente conoce las herramientas principales de CodeForge y el estado actual del modelo.
+      </small>
+    </div>
+  </div>
+</div>
+}
+
+<!-- ========================================================= -->
+<!-- MODAL: CREAR ELEMENTO (CLASE / INTERFAZ / ENUM)          -->
+<!-- ========================================================= -->
+@if (mostrarModalElemento) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarModalElemento()">
+  <div class="cf-modal-box" (click)="$event.stopPropagation()">
+    <div class="cf-modal-header">
+      <div>
+        <span class="panel-label">DISEÑO UML</span>
+        <h2>Crear Elemento UML</h2>
+        <p>Define una nueva estructura en tu diagrama.</p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarModalElemento()" [disabled]="guardandoElemento">
+        ×
+      </button>
+    </div>
+
+    <div class="cf-modal-body">
+
+      <!-- Selector de Tipo -->
+      <div class="cf-field">
+        <label>Tipo de Elemento</label>
+        <div class="type-selector-tabs">
+          <button type="button" class="type-tab" [class.type-tab--active]="nuevoElemento.tipo === 'CLASE'"
+            (click)="nuevoElemento.tipo = 'CLASE'">
+            ▤ Clase
+          </button>
+          <button type="button" class="type-tab" [class.type-tab--active]="nuevoElemento.tipo === 'INTERFACE'"
+            (click)="nuevoElemento.tipo = 'INTERFACE'; nuevoElemento.estereotipo = 'interface'">
+            ◇ Interfaz
+          </button>
+          <button type="button" class="type-tab" [class.type-tab--active]="nuevoElemento.tipo === 'ENUM'"
+            (click)="nuevoElemento.tipo = 'ENUM'; nuevoElemento.estereotipo = 'enumeration'">
+            ◈ Enum
+          </button>
+        </div>
+      </div>
+
+      <!-- Nombre -->
+      <div class="cf-field">
+        <label for="elemNombre">Nombre <span class="required">*</span></label>
+        <input id="elemNombre" type="text" class="cf-input" maxlength="150"
+          placeholder="Ej: Usuario, Producto, Factura..." [(ngModel)]="nuevoElemento.nombre"
+          [disabled]="guardandoElemento" autofocus />
+      </div>
+
+      <!-- Visibilidad y Estereotipo -->
+      <div class="cf-fields-row">
+        <div class="cf-field">
+          <label for="elemVisibilidad">Visibilidad</label>
+          <select id="elemVisibilidad" class="cf-select" [(ngModel)]="nuevoElemento.visibilidad"
+            [disabled]="guardandoElemento">
+            <option value="PUBLIC">PUBLIC (+)</option>
+            <option value="PACKAGE">PACKAGE (~)</option>
+            <option value="PROTECTED">PROTECTED (#)</option>
+            <option value="PRIVATE">PRIVATE (-)</option>
+          </select>
+        </div>
+
+        <div class="cf-field">
+          <label for="elemEstereotipo">Estereotipo <span class="optional">(Opcional)</span></label>
+          <input id="elemEstereotipo" type="text" class="cf-input" maxlength="100"
+            placeholder="Ej: entity, service, repository" [(ngModel)]="nuevoElemento.estereotipo"
+            [disabled]="guardandoElemento" />
+        </div>
+      </div>
+
+      <!-- Abstracto -->
+      @if (nuevoElemento.tipo === 'CLASE') {
+      <div class="cf-check-group">
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="nuevoElemento.abstracto" [disabled]="guardandoElemento" />
+          <span>Clase Abstracta (no instanciable directamente)</span>
+        </label>
+      </div>
+      }
+
+    </div>
+
+    <div class="cf-modal-footer">
+      <button type="button" class="cf-btn cf-btn--ghost" (click)="cerrarModalElemento()" [disabled]="guardandoElemento">
+        Cancelar
+      </button>
+
+      <button type="button" class="cf-btn cf-btn--primary" (click)="confirmarCrearElemento()"
+        [disabled]="guardandoElemento || !nuevoElemento.nombre.trim()">
+        {{ guardandoElemento ? 'Creando...' : 'Crear Elemento' }}
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+
+<!-- ========================================================= -->
+<!-- MODAL: AGREGAR ATRIBUTO                                  -->
+<!-- ========================================================= -->
+@if (mostrarModalAtributo) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarModalAtributo()">
+  <div class="cf-modal-box" (click)="$event.stopPropagation()">
+    <div class="cf-modal-header">
+      <div>
+        <span class="panel-label">UML · ATRIBUTO</span>
+        <h2>Agregar Atributo</h2>
+        <p>Elemento: <strong>{{ elementoSeleccionado?.nombre }}</strong></p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarModalAtributo()" [disabled]="guardandoAtributo">
+        ×
+      </button>
+    </div>
+
+    <div class="cf-modal-body">
+
+      <!-- Nombre -->
+      <div class="cf-field">
+        <label for="atrNombre">Nombre del Atributo <span class="required">*</span></label>
+        <input id="atrNombre" type="text" class="cf-input" maxlength="150"
+          placeholder="Ej: id, email, precio, fechaCreacion..." [(ngModel)]="nuevoAtributo.nombre"
+          [disabled]="guardandoAtributo" autofocus />
+      </div>
+
+      <!-- Tipo y Visibilidad -->
+      <div class="cf-fields-row">
+        <div class="cf-field cf-field--grow">
+          <label for="atrTipo">Tipo de Dato <span class="required">*</span></label>
+          <input id="atrTipo" type="text" class="cf-input" list="tiposDatoComunes"
+            placeholder="String, Long, Integer..." [(ngModel)]="nuevoAtributo.tipo" [disabled]="guardandoAtributo" />
+          <datalist id="tiposDatoComunes">
+            <option value="Long"></option>
+            <option value="Integer"></option>
+            <option value="String"></option>
+            <option value="Double"></option>
+            <option value="BigDecimal"></option>
+            <option value="Boolean"></option>
+            <option value="LocalDate"></option>
+            <option value="LocalDateTime"></option>
+            <option value="UUID"></option>
+            <option value="byte[]"></option>
+          </datalist>
+        </div>
+
+        <div class="cf-field">
+          <label for="atrVisibilidad">Visibilidad</label>
+          <select id="atrVisibilidad" class="cf-select" [(ngModel)]="nuevoAtributo.visibilidad"
+            [disabled]="guardandoAtributo">
+            <option value="PRIVATE">PRIVATE (-)</option>
+            <option value="PUBLIC">PUBLIC (+)</option>
+            <option value="PROTECTED">PROTECTED (#)</option>
+            <option value="PACKAGE">PACKAGE (~)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Multiplicidad y Valor Inicial -->
+      <div class="cf-fields-row">
+        <div class="cf-field">
+          <label for="atrMultiplicidad">Multiplicidad / Cardinalidad</label>
+          <select id="atrMultiplicidad" class="cf-select" [(ngModel)]="nuevoAtributo.multiplicidad"
+            [disabled]="guardandoAtributo">
+            <option value="1">1 (Obligatorio simple)</option>
+            <option value="0..1">0..1 (Opcional / Nullable)</option>
+            <option value="*">* (Colección / Muchos)</option>
+            <option value="0..*">0..* (Cero a muchos)</option>
+            <option value="1..*">1..* (Uno a muchos)</option>
+          </select>
+        </div>
+
+        <div class="cf-field cf-field--grow">
+          <label for="atrValorInicial">Valor Inicial <span class="optional">(Opcional)</span></label>
+          <input id="atrValorInicial" type="text" class="cf-input" placeholder="Ej: null, 0, true, 'ACTIVO'"
+            [(ngModel)]="nuevoAtributo.valorInicial" [disabled]="guardandoAtributo" />
+        </div>
+      </div>
+
+      <!-- Opciones adicionales -->
+      <div class="cf-check-group">
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="nuevoAtributo.estatico" [disabled]="guardandoAtributo" />
+          <span>Estático (static / subrayado)</span>
+        </label>
+
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="nuevoAtributo.derivado" [disabled]="guardandoAtributo" />
+          <span>Derivado (/ calculado)</span>
+        </label>
+      </div>
+
+      <!-- Vista Previa UML -->
+      <div class="attribute-preview">
+        <span class="panel-label">VISTA PREVIA UML</span>
+        <code>
+            {{ simboloVisibilidad(nuevoAtributo.visibilidad) }}
+            {{ nuevoAtributo.derivado ? '/' : '' }}{{ nuevoAtributo.nombre || 'nombre' }}
+            : {{ nuevoAtributo.tipo || 'Tipo' }}
+            @if (nuevoAtributo.multiplicidad && nuevoAtributo.multiplicidad !== '1') {
+              [{{ nuevoAtributo.multiplicidad }}]
+            }
+            @if (nuevoAtributo.valorInicial) {
+              = {{ nuevoAtributo.valorInicial }}
+            }
+          </code>
+      </div>
+
+    </div>
+
+    <div class="cf-modal-footer">
+      <button type="button" class="cf-btn cf-btn--ghost" (click)="cerrarModalAtributo()" [disabled]="guardandoAtributo">
+        Cancelar
+      </button>
+
+      <button type="button" class="cf-btn cf-btn--primary" (click)="confirmarAgregarAtributo()"
+        [disabled]="guardandoAtributo || !nuevoAtributo.nombre.trim() || !nuevoAtributo.tipo.trim()">
+        {{ guardandoAtributo ? 'Guardando...' : 'Agregar Atributo' }}
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+
+<!-- ========================================================= -->
+<!-- MODAL: EDITAR ATRIBUTO                                   -->
+<!-- ========================================================= -->
+@if (mostrarModalEditarAtributo) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarModalEditarAtributo()">
+  <div class="cf-modal-box" (click)="$event.stopPropagation()">
+    <div class="cf-modal-header">
+      <div>
+        <span class="panel-label">UML · MODIFICAR ATRIBUTO</span>
+        <h2>Editar Atributo</h2>
+        <p>Elemento: <strong>{{ elementoSeleccionado?.nombre }}</strong></p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarModalEditarAtributo()" [disabled]="guardandoAtributo">
+        ×
+      </button>
+    </div>
+
+    <div class="cf-modal-body">
+      <div class="cf-field">
+        <label for="editAtrNombre">Nombre <span class="required">*</span></label>
+        <input id="editAtrNombre" type="text" class="cf-input" [(ngModel)]="atributoEditando.nombre"
+          [disabled]="guardandoAtributo" autofocus />
+      </div>
+
+      <div class="cf-fields-row">
+        <div class="cf-field cf-field--grow">
+          <label for="editAtrTipo">Tipo <span class="required">*</span></label>
+          <input id="editAtrTipo" type="text" class="cf-input" list="tiposDatoComunes"
+            [(ngModel)]="atributoEditando.tipo" [disabled]="guardandoAtributo" />
+        </div>
+
+        <div class="cf-field">
+          <label for="editAtrVis">Visibilidad</label>
+          <select id="editAtrVis" class="cf-select" [(ngModel)]="atributoEditando.visibilidad"
+            [disabled]="guardandoAtributo">
+            <option value="PRIVATE">PRIVATE (-)</option>
+            <option value="PUBLIC">PUBLIC (+)</option>
+            <option value="PROTECTED">PROTECTED (#)</option>
+            <option value="PACKAGE">PACKAGE (~)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cf-fields-row">
+        <div class="cf-field">
+          <label for="editAtrMult">Multiplicidad</label>
+          <select id="editAtrMult" class="cf-select" [(ngModel)]="atributoEditando.multiplicidad"
+            [disabled]="guardandoAtributo">
+            <option value="1">1</option>
+            <option value="0..1">0..1</option>
+            <option value="*">*</option>
+            <option value="0..*">0..*</option>
+            <option value="1..*">1..*</option>
+          </select>
+        </div>
+
+        <div class="cf-field cf-field--grow">
+          <label for="editAtrValInit">Valor Inicial</label>
+          <input id="editAtrValInit" type="text" class="cf-input" [(ngModel)]="atributoEditando.valorInicial"
+            [disabled]="guardandoAtributo" />
+        </div>
+      </div>
+
+      <div class="cf-check-group">
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="atributoEditando.estatico" [disabled]="guardandoAtributo" />
+          <span>Estático</span>
+        </label>
+
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="atributoEditando.derivado" [disabled]="guardandoAtributo" />
+          <span>Derivado</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="cf-modal-footer">
+      <button type="button" class="cf-btn cf-btn--ghost" (click)="cerrarModalEditarAtributo()"
+        [disabled]="guardandoAtributo">
+        Cancelar
+      </button>
+
+      <button type="button" class="cf-btn cf-btn--primary" (click)="confirmarEditarAtributo()"
+        [disabled]="guardandoAtributo || !atributoEditando.nombre.trim() || !atributoEditando.tipo.trim()">
+        {{ guardandoAtributo ? 'Guardando...' : 'Guardar Cambios' }}
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+
+<!-- ========================================================= -->
+<!-- MODAL: AGREGAR OPERACIÓN (MÉTODO)                        -->
+<!-- ========================================================= -->
+@if (mostrarModalOperacion) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarModalOperacion()">
+  <div class="cf-modal-box" (click)="$event.stopPropagation()">
+    <div class="cf-modal-header">
+      <div>
+        <span class="panel-label">UML · OPERACIÓN / MÉTODO</span>
+        <h2>Agregar Operación</h2>
+        <p>Elemento: <strong>{{ elementoSeleccionado?.nombre }}</strong></p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarModalOperacion()" [disabled]="guardandoOperacion">
+        ×
+      </button>
+    </div>
+
+    <div class="cf-modal-body">
+
+      <!-- Nombre -->
+      <div class="cf-field">
+        <label for="opNombre">Nombre del Método <span class="required">*</span></label>
+        <input id="opNombre" type="text" class="cf-input" maxlength="150"
+          placeholder="Ej: calcularTotal, findByEmail, save, procesarPago..." [(ngModel)]="nuevaOperacion.nombre"
+          [disabled]="guardandoOperacion" autofocus />
+      </div>
+
+      <!-- Tipo Retorno y Visibilidad -->
+      <div class="cf-fields-row">
+        <div class="cf-field cf-field--grow">
+          <label for="opTipoRetorno">Tipo de Retorno</label>
+          <input id="opTipoRetorno" type="text" class="cf-input" placeholder="void, String, Boolean, List<Item>..."
+            [(ngModel)]="nuevaOperacion.tipoRetorno" [disabled]="guardandoOperacion" />
+        </div>
+
+        <div class="cf-field">
+          <label for="opVisibilidad">Visibilidad</label>
+          <select id="opVisibilidad" class="cf-select" [(ngModel)]="nuevaOperacion.visibilidad"
+            [disabled]="guardandoOperacion">
+            <option value="PUBLIC">PUBLIC (+)</option>
+            <option value="PROTECTED">PROTECTED (#)</option>
+            <option value="PACKAGE">PACKAGE (~)</option>
+            <option value="PRIVATE">PRIVATE (-)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Parámetros del método -->
+      <div class="property-section" style="margin-top: 14px;">
+        <div class="section-header">
+          <div>
+            <span class="panel-label">PARÁMETROS</span>
+            <span class="section-count">({{ nuevaOperacion.parametros.length }})</span>
+          </div>
+        </div>
+
+        @if (nuevaOperacion.parametros.length > 0) {
+        <div class="props-list">
+          @for (param of nuevaOperacion.parametros; track param.id) {
+          <div class="props-item">
+            <div class="props-item-info">
+              <strong>{{ param.nombre }}</strong>
+              <span class="props-type">: {{ param.tipo }}</span>
+              @if (param.direccion) {
+              <span class="props-tag">{{ param.direccion }}</span>
+              }
+            </div>
+            <div class="props-item-actions">
+              <button type="button" class="btn-delete-small" (click)="eliminarParametroOperacionNueva(param.id)"
+                [disabled]="guardandoOperacion" title="Eliminar parámetro">
+                ×
+              </button>
+            </div>
+          </div>
+          }
+        </div>
+        }
+
+        <div class="cf-fields-row" style="margin-top: 10px;">
+          <div class="cf-field cf-field--grow">
+            <label for="opParamNombre">Nombre</label>
+            <input id="opParamNombre" type="text" class="cf-input cf-input--compact" placeholder="Ej: cantidad"
+              [(ngModel)]="nuevoParametroOperacion.nombre" [disabled]="guardandoOperacion" />
+          </div>
+
+          <div class="cf-field cf-field--grow">
+            <label for="opParamTipo">Tipo</label>
+            <input id="opParamTipo" type="text" class="cf-input cf-input--compact" list="tiposDatoOperacion"
+              placeholder="Integer, String, Double..." [(ngModel)]="nuevoParametroOperacion.tipo"
+              [disabled]="guardandoOperacion" />
+          </div>
+
+          <div class="cf-field">
+            <label for="opParamDireccion">Dirección</label>
+            <select id="opParamDireccion" class="cf-select cf-select--compact"
+              [(ngModel)]="nuevoParametroOperacion.direccion" [disabled]="guardandoOperacion">
+              <option value="IN">IN</option>
+              <option value="OUT">OUT</option>
+              <option value="INOUT">INOUT</option>
+            </select>
+          </div>
+
+          <div class="cf-field">
+            <label>&nbsp;</label>
+            <button type="button" class="btn-add" (click)="agregarParametroOperacionNueva()"
+              [disabled]="guardandoOperacion || !nuevoParametroOperacion.nombre.trim() || !nuevoParametroOperacion.tipo.trim()">
+              + Agregar
+            </button>
+          </div>
+        </div>
+
+        <datalist id="tiposDatoOperacion">
+          <option value="String"></option>
+          <option value="Integer"></option>
+          <option value="Long"></option>
+          <option value="Double"></option>
+          <option value="Boolean"></option>
+          <option value="LocalDate"></option>
+          <option value="LocalDateTime"></option>
+        </datalist>
+      </div>
+
+      <!-- Opciones -->
+      <div class="cf-check-group">
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="nuevaOperacion.estatica" [disabled]="guardandoOperacion" />
+          <span>Estática (static)</span>
+        </label>
+
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="nuevaOperacion.abstracta" [disabled]="guardandoOperacion" />
+          <span>Abstracta (abstract / cursiva)</span>
+        </label>
+      </div>
+
+      <!-- Vista Previa UML -->
+      <div class="attribute-preview">
+        <span class="panel-label">VISTA PREVIA UML</span>
+        <code>
+            {{ simboloVisibilidad(nuevaOperacion.visibilidad) }}
+            {{ nuevaOperacion.nombre || 'metodo' }}({{ formatearParametrosOperacion(nuevaOperacion) }})
+            : {{ nuevaOperacion.tipoRetorno || 'void' }}
+          </code>
+      </div>
+
+    </div>
+
+    <div class="cf-modal-footer">
+      <button type="button" class="cf-btn cf-btn--ghost" (click)="cerrarModalOperacion()"
+        [disabled]="guardandoOperacion">
+        Cancelar
+      </button>
+
+      <button type="button" class="cf-btn cf-btn--primary" (click)="confirmarAgregarOperacion()"
+        [disabled]="guardandoOperacion || !nuevaOperacion.nombre.trim()">
+        {{ guardandoOperacion ? 'Guardando...' : 'Agregar Operación' }}
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+
+<!-- ========================================================= -->
+<!-- MODAL: EDITAR OPERACIÓN (MÉTODO)                         -->
+<!-- ========================================================= -->
+@if (mostrarModalEditarOperacion) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarModalEditarOperacion()">
+  <div class="cf-modal-box" (click)="$event.stopPropagation()">
+    <div class="cf-modal-header">
+      <div>
+        <span class="panel-label">UML · MODIFICAR MÉTODO</span>
+        <h2>Editar Operación</h2>
+        <p>Elemento: <strong>{{ elementoSeleccionado?.nombre }}</strong></p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarModalEditarOperacion()" [disabled]="guardandoOperacion">
+        ×
+      </button>
+    </div>
+
+    <div class="cf-modal-body">
+      <div class="cf-field">
+        <label for="editOpNombre">Nombre <span class="required">*</span></label>
+        <input id="editOpNombre" type="text" class="cf-input" [(ngModel)]="operacionEditando.nombre"
+          [disabled]="guardandoOperacion" autofocus />
+      </div>
+
+      <div class="cf-fields-row">
+        <div class="cf-field cf-field--grow">
+          <label for="editOpRetorno">Tipo de Retorno</label>
+          <input id="editOpRetorno" type="text" class="cf-input" [(ngModel)]="operacionEditando.tipoRetorno"
+            [disabled]="guardandoOperacion" />
+        </div>
+
+        <div class="cf-field">
+          <label for="editOpVis">Visibilidad</label>
+          <select id="editOpVis" class="cf-select" [(ngModel)]="operacionEditando.visibilidad"
+            [disabled]="guardandoOperacion">
+            <option value="PUBLIC">PUBLIC (+)</option>
+            <option value="PROTECTED">PROTECTED (#)</option>
+            <option value="PACKAGE">PACKAGE (~)</option>
+            <option value="PRIVATE">PRIVATE (-)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="cf-check-group">
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="operacionEditando.estatica" [disabled]="guardandoOperacion" />
+          <span>Estática</span>
+        </label>
+
+        <label class="cf-check">
+          <input type="checkbox" [(ngModel)]="operacionEditando.abstracta" [disabled]="guardandoOperacion" />
+          <span>Abstracta</span>
+        </label>
+      </div>
+
+      <!-- Parámetros del método -->
+      <div class="property-section" style="margin-top: 14px;">
+        <div class="section-header">
+          <div>
+            <span class="panel-label">PARÁMETROS</span>
+            <span class="section-count">({{ operacionEditando.parametros.length }})</span>
+          </div>
+        </div>
+
+        @if (operacionEditando.parametros.length > 0) {
+        <div class="props-list">
+          @for (param of operacionEditando.parametros; track param.id) {
+          <div class="props-item">
+            <div class="cf-fields-row" style="width:100%;">
+              <div class="cf-field cf-field--grow">
+                <label>Nombre</label>
+                <input type="text" class="cf-input cf-input--compact" [(ngModel)]="param.nombre"
+                  (blur)="editarParametroOperacion(param)"
+                  [disabled]="guardandoParametroOperacion || guardandoOperacion" />
+              </div>
+
+              <div class="cf-field cf-field--grow">
+                <label>Tipo</label>
+                <input type="text" class="cf-input cf-input--compact" [(ngModel)]="param.tipo"
+                  (blur)="editarParametroOperacion(param)"
+                  [disabled]="guardandoParametroOperacion || guardandoOperacion" />
+              </div>
+
+              <div class="cf-field">
+                <label>Dirección</label>
+                <select class="cf-select cf-select--compact" [(ngModel)]="param.direccion"
+                  (change)="editarParametroOperacion(param)"
+                  [disabled]="guardandoParametroOperacion || guardandoOperacion">
+                  <option value="IN">IN</option>
+                  <option value="OUT">OUT</option>
+                  <option value="INOUT">INOUT</option>
+                </select>
+              </div>
+
+              <div class="props-item-actions" style="align-self:flex-end; margin-bottom:4px;">
+                <button type="button" class="btn-delete-small" (click)="eliminarParametroOperacionEditando(param)"
+                  [disabled]="guardandoParametroOperacion || guardandoOperacion" title="Eliminar parámetro">
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+          }
+        </div>
+        }
+
+        <div class="cf-fields-row" style="margin-top: 10px;">
+          <div class="cf-field cf-field--grow">
+            <label for="editOpParamNombre">Nombre</label>
+            <input id="editOpParamNombre" type="text" class="cf-input cf-input--compact" placeholder="Ej: cantidad"
+              [(ngModel)]="nuevoParametroOperacion.nombre"
+              [disabled]="guardandoParametroOperacion || guardandoOperacion" />
+          </div>
+
+          <div class="cf-field cf-field--grow">
+            <label for="editOpParamTipo">Tipo</label>
+            <input id="editOpParamTipo" type="text" class="cf-input cf-input--compact"
+              placeholder="Integer, String, Double..." [(ngModel)]="nuevoParametroOperacion.tipo"
+              [disabled]="guardandoParametroOperacion || guardandoOperacion" />
+          </div>
+
+          <div class="cf-field">
+            <label for="editOpParamDireccion">Dirección</label>
+            <select id="editOpParamDireccion" class="cf-select cf-select--compact"
+              [(ngModel)]="nuevoParametroOperacion.direccion"
+              [disabled]="guardandoParametroOperacion || guardandoOperacion">
+              <option value="IN">IN</option>
+              <option value="OUT">OUT</option>
+              <option value="INOUT">INOUT</option>
+            </select>
+          </div>
+
+          <div class="cf-field">
+            <label>&nbsp;</label>
+            <button type="button" class="btn-add" (click)="agregarParametroOperacionEditando()"
+              [disabled]="guardandoParametroOperacion || guardandoOperacion || !nuevoParametroOperacion.nombre.trim() || !nuevoParametroOperacion.tipo.trim()">
+              + Agregar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cf-modal-footer">
+      <button type="button" class="cf-btn cf-btn--ghost" (click)="cerrarModalEditarOperacion()"
+        [disabled]="guardandoOperacion">
+        Cancelar
+      </button>
+
+      <button type="button" class="cf-btn cf-btn--primary" (click)="confirmarEditarOperacion()"
+        [disabled]="guardandoOperacion || !operacionEditando.nombre.trim()">
+        {{ guardandoOperacion ? 'Guardando...' : 'Guardar Cambios' }}
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+
+<!-- ========================================================= -->
+<!-- MODAL: AGREGAR RELACIÓN CON CARDINALIDAD                 -->
+<!-- ========================================================= -->
+@if (mostrarModalRelacion) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarModalRelacion()">
+  <div class="cf-modal-box cf-modal-box--wide" (click)="$event.stopPropagation()">
+    <div class="cf-modal-header">
+      <div>
+        <span class="panel-label">UML · CONECTOR</span>
+        <h2>Crear Relación UML</h2>
+        <p>Define la conexión estructural y cardinalidad entre dos elementos.</p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarModalRelacion()" [disabled]="guardandoRelacion">
+        ×
+      </button>
+    </div>
+
+    <div class="cf-modal-body">
+
+      <!-- Selector Tipo de Relación (Grid Visual) -->
+      <div class="cf-field">
+        <label>Tipo de Relación</label>
+        <div class="relation-type-grid">
+          <button type="button" class="relation-type-btn"
+            [class.relation-type-btn--active]="nuevaRelacion.tipo === 'ASOCIACION'"
+            (click)="nuevaRelacion.tipo = 'ASOCIACION'">
+            <div class="relation-type-header">
+              <span class="relation-type-dot" style="background:#cbd5e1;"></span>
+              <strong>Asociación</strong>
+            </div>
+            <span class="relation-arrow">────></span>
+            <small>Uso común / relación directa</small>
+          </button>
+
+          <button type="button" class="relation-type-btn"
+            [class.relation-type-btn--active]="nuevaRelacion.tipo === 'GENERALIZACION'"
+            (click)="nuevaRelacion.tipo = 'GENERALIZACION'">
+            <div class="relation-type-header">
+              <span class="relation-type-dot" style="background:#f59e0b;"></span>
+              <strong>Herencia</strong>
+            </div>
+            <span class="relation-arrow">────▷</span>
+            <small>Generalización (extends)</small>
+          </button>
+
+          <button type="button" class="relation-type-btn"
+            [class.relation-type-btn--active]="nuevaRelacion.tipo === 'REALIZACION'"
+            (click)="nuevaRelacion.tipo = 'REALIZACION'">
+            <div class="relation-type-header">
+              <span class="relation-type-dot" style="background:#a78bfa;"></span>
+              <strong>Realización</strong>
+            </div>
+            <span class="relation-arrow">╌╌╌▷</span>
+            <small>Implementa interfaz (implements)</small>
+          </button>
+
+          <button type="button" class="relation-type-btn"
+            [class.relation-type-btn--active]="nuevaRelacion.tipo === 'AGREGACION'"
+            (click)="nuevaRelacion.tipo = 'AGREGACION'">
+            <div class="relation-type-header">
+              <span class="relation-type-dot" style="background:#38bdf8;"></span>
+              <strong>Agregación</strong>
+            </div>
+            <span class="relation-arrow">◇───</span>
+            <small>Tiene-un (vida independiente)</small>
+          </button>
+
+          <button type="button" class="relation-type-btn"
+            [class.relation-type-btn--active]="nuevaRelacion.tipo === 'COMPOSICION'"
+            (click)="nuevaRelacion.tipo = 'COMPOSICION'">
+            <div class="relation-type-header">
+              <span class="relation-type-dot" style="background:#f43f5e;"></span>
+              <strong>Composición</strong>
+            </div>
+            <span class="relation-arrow">◆───</span>
+            <small>Contiene (vida dependiente)</small>
+          </button>
+
+          <button type="button" class="relation-type-btn"
+            [class.relation-type-btn--active]="nuevaRelacion.tipo === 'DEPENDENCIA'"
+            (click)="nuevaRelacion.tipo = 'DEPENDENCIA'">
+            <div class="relation-type-header">
+              <span class="relation-type-dot" style="background:#94a3b8;"></span>
+              <strong>Dependencia</strong>
+            </div>
+            <span class="relation-arrow">╌╌╌></span>
+            <small>Depende de / parámetro</small>
+          </button>
+        </div>
+      </div>
+
+      <!-- Clases Origen y Destino -->
+      <div class="cf-fields-row">
+        <div class="cf-field cf-field--grow">
+          <label for="relOrigen">Clase / Elemento ORIGEN <span class="required">*</span></label>
+          <select id="relOrigen" class="cf-select" [(ngModel)]="nuevaRelacion.origen" [disabled]="guardandoRelacion">
+            <option value="" disabled>Selecciona el origen</option>
+            @for (elem of elementos; track elem.id) {
+            <option [value]="elem.id">{{ elem.nombre }} ({{ elem.tipo }})</option>
+            }
+          </select>
+        </div>
+
+        <div class="cf-field cf-field--grow">
+          <label for="relDestino">Clase / Elemento DESTINO <span class="required">*</span></label>
+          <select id="relDestino" class="cf-select" [(ngModel)]="nuevaRelacion.destino" [disabled]="guardandoRelacion">
+            <option value="" disabled>Selecciona el destino</option>
+            @for (elem of elementos; track elem.id) {
+            <option [value]="elem.id" [disabled]="elem.id === nuevaRelacion.origen">
+              {{ elem.nombre }} ({{ elem.tipo }})
+            </option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <!-- Multiplicidades / Cardinalidades -->
+      <div class="cf-fields-row">
+        <div class="cf-field">
+          <label for="relMultOrigen">Multiplicidad Origen</label>
+          <select id="relMultOrigen" class="cf-select" [(ngModel)]="nuevaRelacion.multiplicidadOrigen"
+            [disabled]="guardandoRelacion">
+            <option value="1">1 (Uno)</option>
+            <option value="0..1">0..1 (Cero o uno)</option>
+            <option value="*">* (Muchos)</option>
+            <option value="0..*">0..* (Cero a muchos)</option>
+            <option value="1..*">1..* (Uno a muchos)</option>
+          </select>
+        </div>
+
+        <div class="cf-field">
+          <label for="relMultDestino">Multiplicidad Destino</label>
+          <select id="relMultDestino" class="cf-select" [(ngModel)]="nuevaRelacion.multiplicidadDestino"
+            [disabled]="guardandoRelacion">
+            <option value="1">1 (Uno)</option>
+            <option value="0..1">0..1 (Cero o uno)</option>
+            <option value="*">* (Muchos)</option>
+            <option value="0..*">0..* (Cero a muchos)</option>
+            <option value="1..*">1..* (Uno a muchos)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Roles Opcionales -->
+      <div class="cf-fields-row">
+        <div class="cf-field">
+          <label for="relRolOrigen">Rol Origen <span class="optional">(Opcional)</span></label>
+          <input id="relRolOrigen" type="text" class="cf-input" placeholder="Ej: propietario, padre, autor"
+            [(ngModel)]="nuevaRelacion.rolOrigen" [disabled]="guardandoRelacion" />
+        </div>
+
+        <div class="cf-field">
+          <label for="relRolDestino">Rol Destino <span class="optional">(Opcional)</span></label>
+          <input id="relRolDestino" type="text" class="cf-input" placeholder="Ej: elementos, items, dependencias"
+            [(ngModel)]="nuevaRelacion.rolDestino" [disabled]="guardandoRelacion" />
+        </div>
+      </div>
+
+    </div>
+
+    <div class="cf-modal-footer">
+      <button type="button" class="cf-btn cf-btn--ghost" (click)="cerrarModalRelacion()" [disabled]="guardandoRelacion">
+        Cancelar
+      </button>
+
+      <button type="button" class="cf-btn cf-btn--primary" (click)="confirmarAgregarRelacion()"
+        [disabled]="guardandoRelacion || !nuevaRelacion.origen || !nuevaRelacion.destino || nuevaRelacion.origen === nuevaRelacion.destino">
+        {{ guardandoRelacion ? 'Creando...' : 'Crear Relación' }}
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+
+<!-- ========================================================= -->
+<!-- MODAL: COLABORADORES                                      -->
+<!-- ========================================================= -->
+<div class="cf-modal" [class.cf-modal-visible]="mostrarColaboradores" (click)="cerrarColaboradores()">
+  <div class="cf-modal-box" (click)="$event.stopPropagation()">
+    <div class="cf-modal-header">
+      <div>
+        <span class="panel-label">EQUIPO DE DESARROLLO</span>
+        <h2>Colaboradores del Proyecto</h2>
+        <p>Miembros que tienen acceso para modelar y editar.</p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarColaboradores()">
+        ×
+      </button>
+    </div>
+
+    <div class="cf-modal-body">
+      <button type="button" class="cf-invite-button" (click)="abrirInvitar()">
+        + Invitar Colaborador
+      </button>
+
+      @if (cargandoColaboradores) {
+      <div class="cf-message">Cargando colaboradores...</div>
+      }
+
+      @if (errorColaboradores) {
+      <div class="cf-message cf-error">{{ errorColaboradores }}</div>
+      }
+
+      @if (!cargandoColaboradores && !errorColaboradores && colaboradores.length === 0) {
+      <div class="cf-message">Todavía no hay otros colaboradores.</div>
+      }
+
+      @if (!cargandoColaboradores && colaboradores.length > 0) {
+      <div class="cf-list">
+        @for (colab of colaboradores; track colab.idUsuario) {
+        <div class="cf-item">
+          <div class="cf-avatar">
+            {{ colab.nombre.charAt(0).toUpperCase() }}
+          </div>
+          <div class="cf-info">
+            <strong>{{ colab.nombre }} {{ colab.apellido }}</strong>
+            <span>@{{ colab.username }}</span>
+            <small>{{ colab.correo }}</small>
+          </div>
+          <span class="cf-role">{{ colab.rolProyecto }}</span>
+        </div>
+        }
+      </div>
+      }
+    </div>
+  </div>
+</div>
+
+
+<!-- ========================================================= -->
+<!-- MODAL: INVITAR PERSONA                                    -->
+<!-- ========================================================= -->
+<div class="cf-modal" [class.cf-modal-visible]="mostrarInvitar" (click)="cerrarInvitar()">
+  <div class="cf-modal-box" (click)="$event.stopPropagation()">
+    <div class="cf-modal-header">
+      <div>
+        <span class="panel-label">COLABORACIÓN EN TIEMPO REAL</span>
+        <h2>Invitar Persona</h2>
+        <p>Busca por nombre de usuario para añadir al proyecto.</p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarInvitar()">
+        ×
+      </button>
+    </div>
+
+    <div class="cf-modal-body">
+      <label for="usernameBusqueda" class="cf-label">Username</label>
+
+      <div class="cf-search-row">
+        <input id="usernameBusqueda" type="text" class="cf-input" placeholder="Ej: carlos, maria, dev123..."
+          [(ngModel)]="usernameBusqueda" (keyup.enter)="buscarUsuario()" />
+
+        <button type="button" class="cf-btn cf-btn--primary" (click)="buscarUsuario()"
+          [disabled]="buscandoUsuario || !usernameBusqueda.trim()">
+          {{ buscandoUsuario ? 'Buscando...' : 'Buscar' }}
+        </button>
+      </div>
+
+      @if (mensajeInvitacion) {
+      <div class="cf-message">{{ mensajeInvitacion }}</div>
+      }
+
+      @if (usuarioEncontrado) {
+      <div class="cf-user-card">
+        <div class="cf-avatar">
+          {{ usuarioEncontrado.nombre.charAt(0).toUpperCase() }}
+        </div>
+        <div class="cf-info">
+          <strong>{{ usuarioEncontrado.nombre }} {{ usuarioEncontrado.apellido }}</strong>
+          <span>@{{ usuarioEncontrado.username }}</span>
+          <small>{{ usuarioEncontrado.correo }}</small>
+        </div>
+      </div>
+
+      <div class="cf-role-box">
+        <span>Rol de proyecto</span>
+        <strong>COLABORADOR</strong>
+      </div>
+
+      <button type="button" class="cf-send-button" (click)="enviarInvitacion()" [disabled]="enviandoInvitacion">
+        {{ enviandoInvitacion ? 'Enviando...' : 'Enviar invitación' }}
+      </button>
+      }
+    </div>
+  </div>
+</div>

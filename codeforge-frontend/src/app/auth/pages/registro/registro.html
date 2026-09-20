@@ -1,0 +1,190 @@
+<div class="registro-page">
+
+  <div class="registro-card">
+
+    <div class="brand">
+
+      <button
+        type="button"
+        class="back-button"
+        (click)="volverInicio()">
+        ←
+      </button>
+
+      <div class="logo-icon">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+
+      <h1>Crear cuenta</h1>
+
+      <p>
+        Empieza a construir con CodeForge AI
+      </p>
+
+    </div>
+
+
+    <form
+      (ngSubmit)="registrar()"
+      #registroForm="ngForm"
+    >
+
+      <div class="name-row">
+
+        <div class="form-group">
+
+          <label for="nombre">
+            Nombres
+          </label>
+
+          <input
+            id="nombre"
+            type="text"
+            name="nombre"
+            [(ngModel)]="nombre"
+            placeholder="Tu nombre"
+            required
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label for="apellido">
+            Apellidos
+          </label>
+
+          <input
+            id="apellido"
+            type="text"
+            name="apellido"
+            [(ngModel)]="apellido"
+            placeholder="Tu apellido"
+            required
+          >
+
+        </div>
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label for="username">
+          Usuario
+        </label>
+
+        <input
+          id="username"
+          type="text"
+          name="username"
+          [(ngModel)]="username"
+          placeholder="Elige tu usuario"
+          required
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label for="correo">
+          Correo electrónico
+        </label>
+
+        <input
+          id="correo"
+          type="email"
+          name="correo"
+          [(ngModel)]="correo"
+          placeholder="correo@ejemplo.com"
+          required
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label for="password">
+          Contraseña
+        </label>
+
+        <input
+          id="password"
+          type="password"
+          name="password"
+          [(ngModel)]="password"
+          placeholder="Mínimo 6 caracteres"
+          required
+          minlength="6"
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label for="confirmPassword">
+          Confirmar contraseña
+        </label>
+
+        <input
+          id="confirmPassword"
+          type="password"
+          name="confirmPassword"
+          [(ngModel)]="confirmPassword"
+          placeholder="Repite tu contraseña"
+          required
+        >
+
+      </div>
+
+
+      @if (error) {
+        <div class="error">
+          {{ error }}
+        </div>
+      }
+
+
+      @if (exito) {
+        <div class="success">
+          {{ exito }}
+        </div>
+      }
+
+
+      <button
+        type="submit"
+        class="register-button"
+        [disabled]="cargando || registroForm.invalid"
+      >
+
+        {{ cargando ? 'Creando cuenta...' : 'Crear cuenta' }}
+
+      </button>
+
+    </form>
+
+
+    <div class="login-link">
+
+      ¿Ya tienes una cuenta?
+
+      <button
+        type="button"
+        (click)="irLogin()"
+      >
+        Iniciar sesión
+      </button>
+
+    </div>
+
+  </div>
+
+</div>

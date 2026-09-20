@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<xmi:XMI xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1" xmi:version="2.1">
+  <xmi:Documentation exporter="CodeForge" exporterVersion="1.0"/>
+  <uml:Model name="CodeForge_Model_1" visibility="public" xmi:id="model-1" xmi:type="uml:Model">
+    <packagedElement name="CodeForge_Model_1" visibility="public" xmi:id="package-1" xmi:type="uml:Package" xmlns="http://schema.omg.org/spec/UML/2.1">
+      <packagedElement name="String" visibility="public" xmi:id="primitive-String" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Integer" visibility="public" xmi:id="primitive-Integer" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Long" visibility="public" xmi:id="primitive-Long" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Double" visibility="public" xmi:id="primitive-Double" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Float" visibility="public" xmi:id="primitive-Float" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Boolean" visibility="public" xmi:id="primitive-Boolean" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Date" visibility="public" xmi:id="primitive-Date" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="LocalDate" visibility="public" xmi:id="primitive-LocalDate" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="LocalDateTime" visibility="public" xmi:id="primitive-LocalDateTime" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Time" visibility="public" xmi:id="primitive-Time" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Object" visibility="public" xmi:id="primitive-Object" xmi:type="uml:PrimitiveType"/>
+      <packagedElement name="Clientenuevo" visibility="public" xmi:id="element-cliente-1" xmi:type="uml:Class">
+        <ownedAttribute lower="1" name="CI" type="primitive-String" upper="1" visibility="private" xmi:id="attribute-atributo-1" xmi:type="uml:Property"/>
+      </packagedElement>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>

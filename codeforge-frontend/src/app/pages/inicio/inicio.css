@@ -1,0 +1,676 @@
+:host {
+  display: block;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.landing-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      circle at 80% 20%,
+      rgba(124, 58, 237, 0.08),
+      transparent 30%
+    ),
+    #090c12;
+  color: #f1f5f9;
+}
+
+
+/* =========================
+   NAVBAR
+========================= */
+
+.navbar {
+  height: 55px;
+  border-bottom: 1px solid #292e38;
+  background: rgba(9, 12, 18, 0.95);
+}
+
+.navbar-content {
+  width: 100%;
+  max-width: 1100px;
+  height: 100%;
+  margin: 0 auto;
+
+  padding: 0 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  cursor: pointer;
+}
+
+.logo-icon {
+  width: 21px;
+  height: 21px;
+
+  border: 2px solid #8b3ff2;
+  border-radius: 5px;
+
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+
+  padding: 3px;
+
+  gap: 2px;
+}
+
+.logo-icon span {
+  background: #8b3ff2;
+  border-radius: 1px;
+}
+
+.logo-text {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-btn,
+.register-btn {
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.login-btn {
+  background: transparent;
+  color: #9aa3b2;
+  padding: 9px 12px;
+}
+
+.login-btn:hover {
+  color: #ffffff;
+}
+
+.register-btn {
+  background: #7c3aed;
+  color: white;
+
+  padding: 8px 17px;
+
+  border-radius: 7px;
+}
+
+.register-btn:hover {
+  background: #8b5cf6;
+}
+
+
+/* =========================
+   HERO
+========================= */
+
+.hero {
+  max-width: 1100px;
+  min-height: 595px;
+
+  margin: 0 auto;
+
+  padding: 98px 20px 75px;
+
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  align-items: center;
+
+  gap: 55px;
+}
+
+.hero-content {
+  max-width: 550px;
+}
+
+.version-badge {
+  display: inline-flex;
+
+  align-items: center;
+  gap: 8px;
+
+  padding: 5px 12px;
+
+  border: 1px solid #2f3540;
+  border-radius: 20px;
+
+  background: #11151d;
+
+  color: #9aa3b2;
+
+  font-size: 12px;
+
+  margin-bottom: 27px;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: #22c55e;
+}
+
+h1 {
+  margin: 0;
+
+  font-size: clamp(50px, 5vw, 67px);
+
+  line-height: 0.99;
+
+  letter-spacing: -3px;
+
+  font-weight: 750;
+}
+
+h1 span {
+  display: block;
+
+  color: #873ef0;
+
+  margin-top: 3px;
+}
+
+.hero-description {
+  margin-top: 30px;
+
+  max-width: 530px;
+
+  color: #9ba5b4;
+
+  font-size: 18px;
+
+  line-height: 1.65;
+}
+
+.hero-description strong {
+  color: #d5dbe4;
+  font-weight: 500;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 12px;
+
+  margin-top: 31px;
+}
+
+.primary-btn,
+.secondary-btn {
+  min-width: 135px;
+
+  padding: 12px 18px;
+
+  border-radius: 8px;
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.primary-btn {
+  border: none;
+
+  color: white;
+
+  background: #7c3aed;
+}
+
+.primary-btn:hover {
+  background: #8b5cf6;
+  transform: translateY(-1px);
+}
+
+.secondary-btn {
+  border: 1px solid #363d48;
+
+  background: transparent;
+
+  color: #e2e8f0;
+}
+
+.secondary-btn:hover {
+  border-color: #64748b;
+  background: #11151d;
+}
+
+.free-text {
+  margin-top: 16px;
+
+  color: #697386;
+
+  font-size: 12px;
+}
+
+
+/* =========================
+   EDITOR PREVIEW
+========================= */
+
+.editor-preview {
+  width: 100%;
+}
+
+.window {
+  width: 100%;
+
+  background: #131820;
+
+  border: 1px solid #313846;
+
+  border-radius: 13px;
+
+  padding: 16px;
+
+  box-shadow:
+    0 25px 70px rgba(0, 0, 0, 0.45);
+}
+
+.window-header {
+  height: 25px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  margin-bottom: 9px;
+}
+
+.window-dots {
+  display: flex;
+
+  gap: 7px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+
+  border-radius: 50%;
+}
+
+.dot.red {
+  background: #d94f4f;
+}
+
+.dot.yellow {
+  background: #c99628;
+}
+
+.dot.green {
+  background: #409d54;
+}
+
+.window-title {
+  font-size: 10px;
+
+  color: #697386;
+
+  margin-right: auto;
+  margin-left: 15px;
+}
+
+.diagram-area {
+  height: 305px;
+
+  position: relative;
+
+  overflow: hidden;
+
+  border-radius: 9px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(82, 95, 112, 0.20) 1px,
+      transparent 1px
+    );
+
+  background-size: 22px 22px;
+
+  background-color: #0b1017;
+}
+
+
+/* =========================
+   UML CLASSES
+========================= */
+
+.uml-class {
+  position: absolute;
+
+  background: rgba(19, 24, 32, 0.97);
+
+  border: 1px solid #384152;
+
+  border-radius: 7px;
+
+  overflow: hidden;
+
+  box-shadow: 0 10px 25px rgba(0,0,0,.25);
+
+  font-family: monospace;
+
+  font-size: 10px;
+}
+
+.class-one {
+  width: 112px;
+
+  left: 72px;
+
+  top: 45px;
+
+  border-color: #8942f7;
+}
+
+.class-two {
+  width: 116px;
+
+  right: 30px;
+
+  top: 45px;
+}
+
+.interface-class {
+  width: 165px;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  bottom: 47px;
+
+  border-color: #319d68;
+}
+
+.class-header {
+  padding: 8px;
+
+  border-bottom: 1px solid #313846;
+
+  color: #9b54ff;
+
+  white-space: nowrap;
+}
+
+.class-two .class-header {
+  color: #47749e;
+}
+
+.interface-class .class-header {
+  color: #40ae78;
+}
+
+.class-body {
+  padding: 8px;
+
+  color: #7c8798;
+
+  line-height: 1.7;
+}
+
+
+/* =========================
+   CONNECTIONS
+========================= */
+
+.connection {
+  position: absolute;
+
+  height: 1px;
+
+  border-top: 1px dashed #8b3ff2;
+
+  transform-origin: left center;
+}
+
+.connection-one {
+  width: 105px;
+
+  left: 183px;
+
+  top: 95px;
+
+  transform: rotate(-13deg);
+}
+
+.connection-two {
+  width: 103px;
+
+  right: 125px;
+
+  top: 102px;
+
+  transform: rotate(22deg);
+
+  border-color: #3b8a68;
+}
+
+
+/* =========================
+   AI PROMPT
+========================= */
+
+.ai-prompt {
+  margin-top: 11px;
+
+  min-height: 35px;
+
+  padding: 8px 12px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  border: 1px solid #343b48;
+
+  border-radius: 7px;
+
+  background: #0c1118;
+
+  font-family: monospace;
+
+  font-size: 10px;
+
+  color: #718096;
+}
+
+.ai-label {
+  color: #8b3ff2;
+}
+
+.cursor {
+  width: 1px;
+  height: 12px;
+
+  background: #8b3ff2;
+}
+
+
+/* =========================
+   FEATURES
+========================= */
+
+.features {
+  border-top: 1px solid #272d37;
+
+  background: #10151c;
+
+  padding: 78px 20px 90px;
+}
+
+.features-content {
+  max-width: 1050px;
+  margin: 0 auto;
+
+  text-align: center;
+}
+
+.features h2 {
+  margin: 0;
+
+  font-size: 25px;
+
+  letter-spacing: -0.7px;
+}
+
+.features-content > p {
+  margin-top: 10px;
+
+  color: #738095;
+
+  font-size: 14px;
+}
+
+.feature-grid {
+  margin-top: 44px;
+
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 20px;
+}
+
+.feature-card {
+  padding: 28px;
+
+  border: 1px solid #2a313d;
+
+  border-radius: 12px;
+
+  background: #121820;
+
+  text-align: left;
+}
+
+.feature-icon {
+  color: #8b3ff2;
+
+  font-size: 24px;
+
+  margin-bottom: 18px;
+}
+
+.feature-card h3 {
+  margin: 0;
+
+  font-size: 16px;
+}
+
+.feature-card p {
+  margin-top: 9px;
+
+  color: #788597;
+
+  font-size: 13px;
+
+  line-height: 1.6;
+}
+
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 850px) {
+
+  .hero {
+    grid-template-columns: 1fr;
+
+    padding-top: 65px;
+  }
+
+  .hero-content {
+    max-width: 100%;
+  }
+
+  .editor-preview {
+    max-width: 620px;
+
+    margin: 0 auto;
+  }
+
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 550px) {
+
+  .navbar-content {
+    padding: 0 14px;
+  }
+
+  .logo-text {
+    font-size: 15px;
+  }
+
+  .hero {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  h1 {
+    font-size: 46px;
+
+    letter-spacing: -2px;
+  }
+
+  .hero-description {
+    font-size: 16px;
+  }
+
+  .hero-buttons {
+    flex-direction: column;
+  }
+
+  .primary-btn,
+  .secondary-btn {
+    width: 100%;
+  }
+
+  .diagram-area {
+    height: 245px;
+  }
+
+  .class-one {
+    left: 20px;
+  }
+
+  .class-two {
+    right: 15px;
+  }
+
+  .interface-class {
+    bottom: 25px;
+  }
+}
