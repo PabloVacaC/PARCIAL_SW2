@@ -4,8 +4,10 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.xml.XMLConstants;
@@ -266,6 +268,19 @@ public class XmiImportService {
              * ============================================================
              */
 
+            Set<String> nombresAssociationClasses = new HashSet<>();
+            for (Element element : packagedElements) {
+                String xmiType = obtenerXmiType(element);
+                if ("uml:AssociationClass".equals(xmiType)) {
+                    String nombre = element.getAttribute("name");
+                    if (nombre != null && !nombre.isBlank()) {
+                        nombresAssociationClasses.add(nombre.trim().toLowerCase());
+                    }
+                }
+            }
+
+            Map<String, Map<String, Object>> elementoPorNombre = new HashMap<>();
+
             for (
                     Element element :
                     packagedElements
@@ -298,6 +313,43 @@ public class XmiImportService {
                                     .toString();
                 }
 
+                String nombre =
+                        element.getAttribute(
+                                "name"
+                        );
+
+                if (nombre == null || nombre.isBlank()) {
+                    nombre = "SinNombre";
+                }
+
+                String nombreKey = nombre.trim().toLowerCase();
+
+                // Si es uml:Class pero existe un uml:AssociationClass con el mismo nombre, omitimos el uml:Class
+                if ("uml:Class".equals(xmiType) && nombresAssociationClasses.contains(nombreKey)) {
+                    continue;
+                }
+
+                // Si ya fue procesado un elemento con este mismo nombre (por ejemplo dos AssociationClass o un duplicado de XMI)
+                if (elementoPorNombre.containsKey(nombreKey)) {
+                    Map<String, Object> existente = elementoPorNombre.get(nombreKey);
+                    String idExistente = (String) existente.get("id");
+                    elementoIdPorXmiId.put(xmiId, idExistente);
+                    nombrePorXmiId.put(xmiId, nombre);
+
+                    if ("uml:AssociationClass".equals(xmiType)) {
+                        existente.put("estereotipo", "association");
+                        List<Map<String, Object>> attrs = leerAtributos(element, nombrePorXmiId);
+                        if (!attrs.isEmpty()) {
+                            existente.put("atributos", attrs);
+                        }
+                        List<Map<String, Object>> ops = leerOperaciones(element, nombrePorXmiId);
+                        if (!ops.isEmpty()) {
+                            existente.put("operaciones", ops);
+                        }
+                    }
+                    continue;
+                }
+
                 String idInterno =
                         UUID.randomUUID()
                                 .toString();
@@ -305,11 +357,6 @@ public class XmiImportService {
                 String tipo =
                         convertirTipoElemento(
                                 xmiType
-                        );
-
-                String nombre =
-                        element.getAttribute(
-                                "name"
                         );
 
                 Map<String, Object> modeloElemento =
@@ -352,6 +399,13 @@ public class XmiImportService {
                                 )
                         )
                 );
+
+                if ("uml:AssociationClass".equals(xmiType)) {
+                    modeloElemento.put(
+                            "estereotipo",
+                            "association"
+                    );
+                }
 
                 Map<String, Object> posicion =
                         new HashMap<>();
@@ -429,6 +483,11 @@ public class XmiImportService {
                 }
 
                 elementos.add(
+                        modeloElemento
+                );
+
+                elementoPorNombre.put(
+                        nombreKey,
                         modeloElemento
                 );
 
@@ -611,10 +670,13 @@ public class XmiImportService {
                         );
 
                 /*
-                 * Asociación normal
+                 * Asociación o Clase de Asociación
                  */
                 if (
                         !"uml:Association".equals(
+                                xmiType
+                        ) &&
+                        !"uml:AssociationClass".equals(
                                 xmiType
                         )
                 ) {
@@ -681,30 +743,39 @@ public class XmiImportService {
                         );
 
                 String tipoRelacion =
-                        obtenerTipoRelacion(
-                                end1,
-                                end2
-                        );
+                        "uml:AssociationClass".equals(
+                                xmiType
+                        )
+                                ? "CLASE_ASOCIACION"
+                                : obtenerTipoRelacion(
+                                        end1,
+                                        end2
+                                );
 
                 /*
                  * Para EA, el orden de los ownedEnd representa
                  * directamente sus extremos.
                  */
+                String nombreAsocClass = association.getAttribute("name");
+                String rolDestinoFinal = ("uml:AssociationClass".equals(xmiType) && nombreAsocClass != null && !nombreAsocClass.isBlank())
+                        ? nombreAsocClass
+                        : obtenerNombreEnd(end2);
+
+                String idOrigenFinal = elementoIdPorXmiId.get(tipoClase1);
+                String idDestinoFinal = elementoIdPorXmiId.get(tipoClase2);
+                if (idOrigenFinal != null && idOrigenFinal.equals(idDestinoFinal) && "ASOCIACION".equals(tipoRelacion)) {
+                    tipoRelacion = "RECURSIVA";
+                }
+
                 relaciones.add(
                         crearRelacion(
                                 tipoRelacion,
-                                elementoIdPorXmiId.get(
-                                        tipoClase1
-                                ),
-                                elementoIdPorXmiId.get(
-                                        tipoClase2
-                                ),
+                                idOrigenFinal,
+                                idDestinoFinal,
                                 obtenerNombreEnd(
                                         end1
                                 ),
-                                obtenerNombreEnd(
-                                        end2
-                                ),
+                                rolDestinoFinal,
                                 multiplicidad1,
                                 multiplicidad2
                         )
@@ -1400,6 +1471,20 @@ private String obtenerNombreEnd(
             Element end
     ) {
 
+        if (end == null) {
+            return null;
+        }
+
+        String typeAttr = end.getAttribute("type");
+        if (typeAttr != null && !typeAttr.isBlank()) {
+            return typeAttr;
+        }
+
+        String idrefEnd = obtenerReferencia(end, "idref");
+        if (idrefEnd != null && !idrefEnd.isBlank()) {
+            return idrefEnd;
+        }
+
         Element type =
                 primerHijo(
                         end,
@@ -1831,6 +1916,9 @@ private String obtenerNombreEnd(
 
         return
                 "uml:Class".equals(
+                        tipo
+                ) ||
+                "uml:AssociationClass".equals(
                         tipo
                 ) ||
                 "uml:Interface".equals(

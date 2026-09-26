@@ -24,6 +24,12 @@ public class UmlImageAiService {
             @Value("${codeforge.ai.gemini.api-key:}") String apiKey,
             @Value("${codeforge.ai.gemini.model:gemini-3.6-flash}") String model
     ) {
+        if (apiKey == null || apiKey.isBlank()) {
+            apiKey = System.getenv("GEMINI_API_KEY");
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            apiKey = System.getProperty("GEMINI_API_KEY");
+        }
         this.apiKey = apiKey;
         this.model = model;
     }
@@ -48,6 +54,10 @@ public class UmlImageAiService {
             );
         }
 
+        if (mimeType.contains(";")) {
+            mimeType = mimeType.split(";")[0].trim();
+        }
+
         if (!esImagenSoportada(mimeType)) {
             throw new IllegalArgumentException(
                     "Solo se permiten imágenes PNG, JPG, JPEG o WEBP."
@@ -70,6 +80,10 @@ public class UmlImageAiService {
     // =========================================================
 
     public JsonNode analizarAudio(MultipartFile audio) throws IOException {
+        return analizarAudio(audio, null);
+    }
+
+    public JsonNode analizarAudio(MultipartFile audio, String contexto) throws IOException {
 
         if (audio == null || audio.isEmpty()) {
             throw new IllegalArgumentException(
@@ -85,6 +99,10 @@ public class UmlImageAiService {
             );
         }
 
+        if (mimeType.contains(";")) {
+            mimeType = mimeType.split(";")[0].trim();
+        }
+
         if (!esAudioSoportado(mimeType)) {
             throw new IllegalArgumentException(
                     "Formato de audio no soportado. "
@@ -94,7 +112,7 @@ public class UmlImageAiService {
 
         validarApiKey();
 
-        String prompt = construirPromptAudio();
+        String prompt = construirPromptAudio(contexto);
 
         return ejecutarGemini(
                 prompt,
@@ -163,8 +181,9 @@ public class UmlImageAiService {
                 La imagen contiene un diseño conceptual,
                 diagrama UML o diagrama de clases.
 
-                Identifica las clases que aparecen,
-                sus atributos, operaciones y las relaciones visibles.
+                Identifica minuciosamente todas las clases que aparecen,
+                sus atributos (con visibilidad +, -, # y tipo si existe),
+                sus operaciones/métodos, y TODAS las relaciones visibles.
 
                 Debes devolver únicamente JSON válido.
                 NO escribas explicaciones.
@@ -177,9 +196,9 @@ public class UmlImageAiService {
                   "versionUML": "2.5",
                   "elementos": [
                     {
-                      "id": "",
+                      "id": "elem-1",
                       "tipo": "CLASE",
-                      "nombre": "",
+                      "nombre": "NombreClase",
                       "visibilidad": "PUBLIC",
                       "estereotipo": null,
                       "abstracto": false,
@@ -192,62 +211,85 @@ public class UmlImageAiService {
                         "ancho": 260,
                         "alto": 180
                       },
-                      "atributos": [],
-                      "operaciones": []
+                      "atributos": [
+                        {
+                          "id": "atr-1",
+                          "nombre": "id",
+                          "tipo": "Long",
+                          "visibilidad": "PUBLIC",
+                          "multiplicidad": "1",
+                          "derivado": false,
+                          "estatico": false,
+                          "valorInicial": null
+                        }
+                      ],
+                      "operaciones": [
+                        {
+                          "id": "op-1",
+                          "nombre": "metodoEjemplo",
+                          "visibilidad": "PUBLIC",
+                          "estatica": false,
+                          "abstracta": false,
+                          "tipoRetorno": "void",
+                          "parametros": []
+                        }
+                      ]
                     }
                   ],
-                  "relaciones": []
+                  "relaciones": [
+                    {
+                      "id": "rel-1",
+                      "tipo": "ASOCIACION",
+                      "origen": "elem-1",
+                      "destino": "elem-2",
+                      "rolOrigen": null,
+                      "rolDestino": null,
+                      "multiplicidadOrigen": "1",
+                      "multiplicidadDestino": "1"
+                    }
+                  ]
                 }
 
-                REGLAS:
+                REGLAS IMPORTANTES:
 
-                1. Identifica únicamente los elementos que realmente
-                   aparezcan en la imagen.
+                1. Identifica todos los elementos UML que aparezcan en la imagen (CLASE, INTERFACE o ENUM).
+                   Si una clase tiene estereotipo como <<interface>> o <<enumeration>> asigna tipo INTERFACE o ENUM.
+                   Si una clase está ligada como clase de asociación intermedia, asigna tipo CLASE y estereotipo "association".
 
-                2. Usa CLASE, INTERFACE o ENUM según corresponda.
+                2. Identifica atributos visibles:
+                   - Si empieza con +, visibilidad = "PUBLIC"
+                   - Si empieza con -, visibilidad = "PRIVATE"
+                   - Si empieza con #, visibilidad = "PROTECTED"
+                   - Si empieza con ~, visibilidad = "PACKAGE"
+                   - Si no tiene tipo especificado, infiere el tipo adecuado (String, Long, Integer, Double, Boolean, LocalDate, LocalDateTime) o usa String.
 
-                3. Identifica atributos visibles.
+                3. Identifica operaciones visibles con sus tipos de retorno y parámetros si están presentes.
 
-                4. Identifica operaciones visibles.
+                4. IDENTIFICACIÓN PRECISA DE TODAS LAS RELACIONES UML:
+                   Los tipos de relación permitidos son:
+                   - GENERALIZACION: Herencia. Línea continua con flecha de triángulo hueco/blanco sólido en el extremo que apunta a la clase padre o superclase.
+                   - REALIZACION: Implementación. Línea discontinua o punteada con flecha de triángulo hueco apuntando a la interface.
+                   - AGREGACION: Línea con rombo hueco/blanco (vacío) en el extremo de la clase contenedora/todo.
+                   - COMPOSICION: Línea con rombo relleno/sólido negro o coloreado en el extremo de la clase contenedora/todo.
+                   - DEPENDENCIA: Línea punteada o discontinua con flecha abierta simple (-->).
+                   - ASOCIACION: Línea sólida continua simple o con flecha abierta ordinaria entre dos clases distintas.
+                   - CLASE_ASOCIACION: Una clase asociada conectada mediante una línea discontinua/punteada a una línea de relación entre otras dos clases.
+                     * Crea la clase intermedia en "elementos" (con tipo "CLASE", su nombre y estereotipo "association").
+                     * Crea la relación en "relaciones" con tipo "CLASE_ASOCIACION", origen: ID de la primera clase, destino: ID de la segunda clase, y "rolDestino": nombre de la clase intermedia.
+                   - RECURSIVA: Relación recursiva, reflexiva o auto-asociación.
+                     * Es una línea que SALE de una clase y VUELVE A ENTRAR en la misma clase formando un bucle, lazo o rectángulo (por ejemplo: un Comentario que tiene subcomentarios consigo mismo, un Empleado con jefe Empleado, una Categoría con subcategorías, etc.).
+                     * En este caso, "tipo": "RECURSIVA", "origen": ID de la clase, "destino": el MISMO ID de la clase (origen == destino).
+                     * Registra multiplicidades en ambos extremos (ej: "multiplicidadOrigen": "1", "multiplicidadDestino": "0..*") y los roles en cada extremo si están presentes (ej: rolOrigen: "es", rolDestino: "subcomentario" o "tiene").
 
-                5. Identifica parámetros de las operaciones
-                   cuando sean visibles.
+                5. Identifica multiplicidades en los extremos cuando aparezcan (1, 0..1, *, 0..*, 1..*).
 
-                6. Identifica las relaciones visibles.
+                6. Ubica los elementos en el lienzo respetando su disposición espacial relativa en la imagen (posicion x, y).
 
-                7. Los tipos de relación permitidos son:
+                7. Cada elemento, atributo, operación y relación debe tener un ID único (ej: elem-1, atr-1, rel-1).
 
-                   ASOCIACION
-                   GENERALIZACION
-                   REALIZACION
-                   AGREGACION
-                   COMPOSICION
-                   DEPENDENCIA
+                8. Utiliza versionUML = 2.5.
 
-                8. Identifica multiplicidades cuando sean visibles:
-
-                   1
-                   0..1
-                   *
-                   0..*
-                   1..*
-
-                9. No inventes información que no pueda verse.
-
-                10. Cada elemento debe tener un ID único.
-
-                11. Cada atributo debe tener un ID único.
-
-                12. Cada operación debe tener un ID único.
-
-                13. Cada parámetro debe tener un ID único.
-
-                14. Ubica aproximadamente los elementos según
-                    su posición en la imagen.
-
-                15. Utiliza versionUML = 2.5.
-
-                16. Devuelve únicamente JSON válido.
+                9. Devuelve ÚNICAMENTE el JSON solicitado sin ningún comentario ni texto antes o después.
                 """;
     }
 
@@ -256,32 +298,44 @@ public class UmlImageAiService {
     // =========================================================
 
     private String construirPromptAudio() {
+        return construirPromptAudio(null);
+    }
+
+    private String construirPromptAudio(String contexto) {
+
+        String bloqueContexto = "";
+        if (contexto != null && !contexto.isBlank()) {
+            bloqueContexto = """
+                    
+                    ESTADO ACTUAL DEL MODELO UML (ELEMENTOS EN EL DIAGRAMA):
+                    %s
+                    
+                    Usa esta lista para identificar exactamente qué clase, relación, atributo o método se solicita eliminar o modificar.
+                    """.formatted(contexto);
+        }
 
         return """
                 Analiza cuidadosamente el audio que te estoy enviando.
 
-                El audio contiene una descripción hablada de un
-                diseño conceptual, sistema, diagrama UML o modelo
-                de clases.
+                El audio contiene una descripción hablada con instrucciones
+                sobre un diseño conceptual, sistema o diagrama de clases UML.
 
-                La persona puede describir:
+                La persona puede solicitar:
 
-                - nombres de clases
-                - atributos
-                - tipos de atributos
-                - métodos u operaciones
-                - relaciones entre clases
-                - herencia
-                - composición
-                - agregación
-                - dependencias
-                - multiplicidades
-                - interfaces
-                - enumeraciones
+                1. CREAR O AGREGAR (palabras como "crear", "agrega", "añadir", "nuevo", "insertar"):
+                   - Clases, interfaces o enumeraciones
+                   - Atributos (con su tipo y multiplicidad)
+                   - Métodos u operaciones (con parámetros y tipo de retorno)
+                   - Relaciones entre clases (asociación, herencia/generalización, composición,
+                     agregación, dependencia, clase de asociación)
+                   - Multiplicidades
 
-                Convierte toda la información relevante del audio
-                en un modelo UML estructurado para CodeForge.
-
+                2. ELIMINAR O BORRAR (palabras como "eliminar", "elimina", "borrar", "borra", "quitar", "quita", "sacar", "saca", "suprimir"):
+                   - Clases existentes (ej: "elimina la clase Estudiante", "borra la clase X", "quita el elemento Y")
+                   - Relaciones existentes (ej: "elimina la relación entre Cliente y Pedido", "borra la asociación entre A y B", "quita la herencia de A a B")
+                   - Atributos existentes (ej: "elimina el atributo email de Usuario", "borra el campo telefono de Cliente", "quita edad de Alumno")
+                   - Métodos u operaciones existentes (ej: "elimina el método calcularTotal de Factura", "borra la función pagar de Pago", "quita el método registrar")
+                %s
                 Debes devolver únicamente JSON válido.
 
                 NO escribas explicaciones.
@@ -353,66 +407,72 @@ public class UmlImageAiService {
                       "multiplicidadOrigen": null,
                       "multiplicidadDestino": null
                     }
-                  ]
+                  ],
+                  "eliminaciones": {
+                    "clases": [],
+                    "relaciones": [],
+                    "atributos": [],
+                    "operaciones": []
+                  }
                 }
 
                 REGLAS:
 
-                1. Crea únicamente las clases que la persona
-                   realmente menciona.
+                1. CREACIÓN:
+                   - Si la persona describe clases nuevas, agrégalas a "elementos".
+                   - Si la persona describe atributos nuevos para una clase, agrégalos a sus "atributos".
+                   - Si la persona describe métodos u operaciones nuevas, agrégalos a sus "operaciones".
+                   - Si la persona describe relaciones nuevas, agrégalas a "relaciones".
+                   - CRÍTICO: Si la persona SOLO pide eliminar cosas y NO pide crear nada nuevo, "elementos" DEBE ser [] y "relaciones" DEBE ser []. NUNCA inventes elementos vacíos ni dejes el ejemplo en la respuesta.
 
-                2. Crea INTERFACE únicamente cuando la persona
-                   indique explícitamente que es una interfaz.
+                2. ELIMINACIÓN (IDENTIFICACIÓN EXACTA):
+                   - Si la persona pide eliminar una clase (ej: "elimina la clase Estudiante", "borra Estudiante"):
+                     "eliminaciones": { "clases": ["Estudiante"], ... }
+                   - Si la persona pide eliminar una relación (ej: "elimina la relación entre Cliente y Factura"):
+                     "eliminaciones": { "relaciones": [{"origen": "Cliente", "destino": "Factura"}], ... }
+                   - Si la persona pide eliminar un atributo (ej: "elimina el atributo email de Usuario"):
+                     "eliminaciones": { "atributos": [{"clase": "Usuario", "nombre": "email"}], ... }
+                     (Si no especifica la clase, busca en el contexto a qué clase pertenece ese atributo y pon su nombre en "clase").
+                   - Si la persona pide eliminar una operación o método (ej: "elimina el método calcularTotal de Factura"):
+                     "eliminaciones": { "operaciones": [{"clase": "Factura", "nombre": "calcularTotal"}], ... }
+                     (Si no especifica la clase, busca en el contexto a qué clase pertenece ese método y pon su nombre en "clase").
+                   - Si no se solicita eliminar alguna de estas categorías, deja sus respectivas listas vacías ([]).
+                   - NUNCA omitas la clave "eliminaciones" ni pongas null; siempre debe tener las cuatro listas: "clases", "relaciones", "atributos" y "operaciones".
 
-                3. Crea ENUM únicamente cuando la persona
-                   indique explícitamente una enumeración.
+                3. OPERACIONES COMBINADAS:
+                   Si la persona pide al mismo tiempo crear y eliminar cosas en el mismo audio (ej: "elimina la clase Persona y crea la clase Cliente"),
+                   procesa ambas: las creaciones en "elementos" / "relaciones", y las eliminaciones en "eliminaciones".
 
-                4. Extrae los atributos mencionados.
+                4. Tipos de relación permitidos:
+                   ASOCIACION
+                   GENERALIZACION
+                   REALIZACION
+                   AGREGACION
+                   COMPOSICION
+                   DEPENDENCIA
+                   CLASE_ASOCIACION
+                   RECURSIVA
 
-                5. Extrae el tipo del atributo cuando sea indicado.
+                5. Para clases de asociación nuevas:
+                   - Crea la clase intermedia en "elementos" (con tipo "CLASE", su nombre y estereotipo "association").
+                   - Crea la relación en "relaciones" con tipo "CLASE_ASOCIACION", origen: ID de la primera clase, destino: ID de la segunda clase, y "rolDestino": nombre de la clase de asociación.
 
-                6. Si no se especifica el tipo de un atributo,
-                   utiliza String.
+                6. Para relaciones recursivas (auto-asociación, reflexivas):
+                   - Si la persona describe que una clase se relaciona consigo misma (ej: "un Comentario tiene subcomentarios que son otros comentarios", "un Empleado tiene un jefe que es otro Empleado"):
+                     Crea la relación en "relaciones" con tipo "RECURSIVA", origen: ID de la clase, destino: el MISMO ID de la clase, con sus respectivas multiplicidades y roles.
 
-                7. Extrae las operaciones o métodos mencionados.
+                6. Si no se especifica el tipo de un atributo nuevo, usa String.
+                7. Si no se especifica el tipo de retorno de un método nuevo, usa void.
 
-                8. Extrae los parámetros de las operaciones
-                   cuando estén descritos.
+                8. Cada elemento nuevo en "elementos", así como sus atributos y operaciones,
+                   debe tener un ID único (ej: "elem-1", "atr-1", "op-1").
 
-                9. Extrae las relaciones entre clases.
+                9. Ubica las clases en posiciones legibles sin superponerse.
 
-                10. Los tipos de relación permitidos son:
+                10. Utiliza versionUML = 2.5.
 
-                    ASOCIACION
-                    GENERALIZACION
-                    REALIZACION
-                    AGREGACION
-                    COMPOSICION
-                    DEPENDENCIA
-
-                11. Extrae las multiplicidades si son indicadas.
-
-                12. No inventes relaciones que no sean descritas.
-
-                13. No inventes atributos que no sean mencionados.
-
-                14. No inventes operaciones que no sean mencionadas.
-
-                15. Cada elemento debe tener un ID único.
-
-                16. Cada atributo debe tener un ID único.
-
-                17. Cada operación debe tener un ID único.
-
-                18. Cada parámetro debe tener un ID único.
-
-                19. Coloca las clases en posiciones ordenadas
-                    para que el diagrama sea fácil de visualizar.
-
-                20. Utiliza versionUML = 2.5.
-
-                21. Devuelve únicamente JSON válido.
-                """;
+                11. Devuelve ÚNICAMENTE el JSON solicitado sin ningún comentario ni texto adicional.
+                """.formatted(bloqueContexto);
     }
 
     // =========================================================

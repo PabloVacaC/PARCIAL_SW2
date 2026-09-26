@@ -419,6 +419,9 @@ public class IntercambioService {
                 && !tipoTexto.equals("COMPOSICION")
                 && !tipoTexto.equals("DEPENDENCIA")
                 && !tipoTexto.equals("REALIZACION")
+                && !tipoTexto.equals("CLASE_ASOCIACION")
+                && !tipoTexto.equals("ASOCIACION_CLASE")
+                && !tipoTexto.equals("RECURSIVA")
         ) {
 
             throw new RuntimeException(

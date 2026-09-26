@@ -1018,6 +1018,17 @@ public void eliminarElemento(
 
     contenido.put("elementos", elementos);
 
+    Object relacionesObj = contenido.get("relaciones");
+    if (relacionesObj instanceof List<?>) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> relaciones = (List<Map<String, Object>>) relacionesObj;
+        relaciones.removeIf(r ->
+                idElemento.equals(String.valueOf(r.get("origen"))) ||
+                idElemento.equals(String.valueOf(r.get("destino")))
+        );
+        contenido.put("relaciones", relaciones);
+    }
+
     modelo.setContenidoJson(contenido);
 
     actualizarVersion(modelo);
@@ -2610,7 +2621,10 @@ private boolean tipoRelacionValido(String tipo) {
             || tipo.equals("AGREGACION")
             || tipo.equals("COMPOSICION")
             || tipo.equals("DEPENDENCIA")
-            || tipo.equals("REALIZACION");
+            || tipo.equals("REALIZACION")
+            || tipo.equals("CLASE_ASOCIACION")
+            || tipo.equals("ASOCIACION_CLASE")
+            || tipo.equals("RECURSIVA");
 }
 public List<Map<String, Object>> obtenerRelaciones(
         Long idModelo
@@ -2676,7 +2690,7 @@ public Map<String, Object> agregarRelacion(
                 "Tipo de relación no válido. Use: "
                         + "ASOCIACION, GENERALIZACION, "
                         + "AGREGACION, COMPOSICION, "
-                        + "DEPENDENCIA o REALIZACION."
+                        + "DEPENDENCIA, REALIZACION, CLASE_ASOCIACION o RECURSIVA."
         );
     }
 

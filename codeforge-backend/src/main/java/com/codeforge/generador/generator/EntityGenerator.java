@@ -1119,13 +1119,14 @@ public class EntityGenerator {
                     );
 
             /*
-             * Asociaciones, agregaciones y composiciones generan relaciones JPA.
+             * Asociaciones, agregaciones, composiciones y recursivas generan relaciones JPA.
              */
             if (
                     tipo == null ||
                     (!tipo.equalsIgnoreCase("ASOCIACION") &&
                      !tipo.equalsIgnoreCase("AGREGACION") &&
-                     !tipo.equalsIgnoreCase("COMPOSICION"))
+                     !tipo.equalsIgnoreCase("COMPOSICION") &&
+                     !tipo.equalsIgnoreCase("RECURSIVA"))
             ) {
                 continue;
             }

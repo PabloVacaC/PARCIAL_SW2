@@ -178,9 +178,10 @@ public class SchemaSqlGenerator {
                         );
 
                 if (
-                        !"ASOCIACION".equalsIgnoreCase(
-                                tipo
-                        )
+                        !"ASOCIACION".equalsIgnoreCase(tipo) &&
+                        !"AGREGACION".equalsIgnoreCase(tipo) &&
+                        !"COMPOSICION".equalsIgnoreCase(tipo) &&
+                        !"RECURSIVA".equalsIgnoreCase(tipo)
                 ) {
                     continue;
                 }

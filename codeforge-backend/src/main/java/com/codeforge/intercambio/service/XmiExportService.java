@@ -3,8 +3,10 @@ package com.codeforge.intercambio.service;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -169,10 +171,10 @@ public class XmiExportService {
                     );
 
             paquete.setAttributeNS(
-                    XMI_NS,
-                    "xmi:type",
-                    "uml:Package"
-            );
+                            XMI_NS,
+                            "xmi:type",
+                            "uml:Package"
+                    );
 
             paquete.setAttributeNS(
                     XMI_NS,
@@ -219,6 +221,26 @@ public class XmiExportService {
                     paquete
             );
 
+            List<Map<String, Object>> relaciones =
+                    obtenerLista(
+                            contenido.get("relaciones")
+                    );
+
+            Set<String> nombresOIdsClasesAsociacion = new HashSet<>();
+            for (Map<String, Object> rel : relaciones) {
+                String tipoRel = texto(rel.get("tipo"));
+                if ("CLASE_ASOCIACION".equalsIgnoreCase(tipoRel) || "ASOCIACION_CLASE".equalsIgnoreCase(tipoRel)) {
+                    String rolDest = texto(rel.get("rolDestino"));
+                    if (rolDest != null && !rolDest.isBlank()) {
+                        nombresOIdsClasesAsociacion.add(rolDest.toLowerCase());
+                    }
+                    String rolOrig = texto(rel.get("rolOrigen"));
+                    if (rolOrig != null && !rolOrig.isBlank()) {
+                        nombresOIdsClasesAsociacion.add(rolOrig.toLowerCase());
+                    }
+                }
+            }
+
             /*
              * ============================================================
              * ELEMENTOS UML
@@ -245,6 +267,11 @@ public class XmiExportService {
                                 elemento.get("nombre")
                         );
 
+                String estereotipo =
+                        texto(
+                                elemento.get("estereotipo")
+                        );
+
                 String idXmi =
                         "element-" +
                         normalizarId(
@@ -255,6 +282,16 @@ public class XmiExportService {
                         idOriginal,
                         idXmi
                 );
+
+                // Si es una clase de asociación, NO se exporta como uml:Class para evitar duplicarla;
+                // se exportará como uml:AssociationClass en la sección de relaciones con sus atributos y operaciones.
+                boolean esClaseAsoc = "association".equalsIgnoreCase(estereotipo)
+                        || (nombre != null && !nombre.isBlank() && nombresOIdsClasesAsociacion.contains(nombre.toLowerCase()))
+                        || (idOriginal != null && !idOriginal.isBlank() && nombresOIdsClasesAsociacion.contains(idOriginal.toLowerCase()));
+
+                if (esClaseAsoc) {
+                    continue;
+                }
 
                 String tipoXmi;
 
@@ -329,298 +366,19 @@ public class XmiExportService {
                 );
 
                 /*
-                 * ========================================================
-                 * ATRIBUTOS
-                 * ========================================================
+                 * Atributos y Operaciones
                  */
+                agregarAtributosElementoXmi(
+                        document,
+                        elementoXmi,
+                        obtenerLista(elemento.get("atributos"))
+                );
 
-                List<Map<String, Object>> atributos =
-                        obtenerLista(
-                                elemento.get(
-                                        "atributos"
-                                )
-                        );
-
-                for (
-                        Map<String, Object> atributo :
-                        atributos
-                ) {
-
-                    Element propiedad =
-                            document.createElementNS(
-                                    UML_NS,
-                                    "ownedAttribute"
-                            );
-
-                    propiedad.setAttributeNS(
-                            XMI_NS,
-                            "xmi:type",
-                            "uml:Property"
-                    );
-
-                    String atributoId =
-                            texto(
-                                    atributo.get(
-                                            "id"
-                                    )
-                            );
-
-                    propiedad.setAttributeNS(
-                            XMI_NS,
-                            "xmi:id",
-                            "attribute-" +
-                                    normalizarId(
-                                            atributoId
-                                    )
-                    );
-
-                    propiedad.setAttribute(
-                            "name",
-                            texto(
-                                    atributo.get(
-                                            "nombre"
-                                    )
-                            )
-                    );
-
-                    propiedad.setAttribute(
-                            "visibility",
-                            convertirVisibilidad(
-                                    texto(
-                                            atributo.get(
-                                                    "visibilidad"
-                                            )
-                                    )
-                            )
-                    );
-
-                    String tipoAtributo =
-                            texto(
-                                    atributo.get(
-                                            "tipo"
-                                    )
-                            );
-
-                    propiedad.setAttribute(
-                            "type",
-                            "primitive-" +
-                                    normalizarId(
-                                            tipoAtributo
-                                    )
-                    );
-
-                    if (
-                            booleano(
-                                    atributo.get(
-                                            "estatico"
-                                    )
-                            )
-                    ) {
-
-                        propiedad.setAttribute(
-                                "isStatic",
-                                "true"
-                        );
-                    }
-
-                    if (
-                            booleano(
-                                    atributo.get(
-                                            "derivado"
-                                    )
-                            )
-                    ) {
-
-                        propiedad.setAttribute(
-                                "isDerived",
-                                "true"
-                        );
-                    }
-
-                    propiedad.setAttribute(
-                            "lower",
-                            convertirLimiteInferior(
-                                    texto(
-                                            atributo.get(
-                                                    "multiplicidad"
-                                            )
-                                    )
-                            )
-                    );
-
-                    propiedad.setAttribute(
-                            "upper",
-                            convertirLimiteSuperior(
-                                    texto(
-                                            atributo.get(
-                                                    "multiplicidad"
-                                            )
-                                    )
-                            )
-                    );
-
-                    elementoXmi.appendChild(
-                            propiedad
-                    );
-                }
-
-                /*
-                 * ========================================================
-                 * OPERACIONES
-                 * ========================================================
-                 */
-
-                List<Map<String, Object>> operaciones =
-                        obtenerLista(
-                                elemento.get(
-                                        "operaciones"
-                                )
-                        );
-
-                for (
-                        Map<String, Object> operacion :
-                        operaciones
-                ) {
-
-                    Element ownedOperation =
-                            document.createElementNS(
-                                    UML_NS,
-                                    "ownedOperation"
-                            );
-
-                    ownedOperation.setAttributeNS(
-                            XMI_NS,
-                            "xmi:type",
-                            "uml:Operation"
-                    );
-
-                    String operacionId =
-                            texto(
-                                    operacion.get(
-                                            "id"
-                                    )
-                            );
-
-                    ownedOperation.setAttributeNS(
-                            XMI_NS,
-                            "xmi:id",
-                            "operation-" +
-                                    normalizarId(
-                                            operacionId
-                                    )
-                    );
-
-                    ownedOperation.setAttribute(
-                            "name",
-                            texto(
-                                    operacion.get(
-                                            "nombre"
-                                    )
-                            )
-                    );
-
-                    ownedOperation.setAttribute(
-                            "visibility",
-                            convertirVisibilidad(
-                                    texto(
-                                            operacion.get(
-                                                    "visibilidad"
-                                            )
-                                    )
-                            )
-                    );
-
-                    List<Map<String, Object>> parametros =
-                            obtenerLista(
-                                    operacion.get(
-                                            "parametros"
-                                    )
-                            );
-
-                    for (
-                            Map<String, Object> parametro :
-                            parametros
-                    ) {
-
-                        Element ownedParameter =
-                                document.createElementNS(
-                                        UML_NS,
-                                        "ownedParameter"
-                                );
-
-                        ownedParameter.setAttributeNS(
-                                XMI_NS,
-                                "xmi:type",
-                                "uml:Parameter"
-                        );
-
-                        String parametroId =
-                                texto(
-                                        parametro.get(
-                                                "id"
-                                        )
-                                );
-
-                        ownedParameter.setAttributeNS(
-                                XMI_NS,
-                                "xmi:id",
-                                "parameter-" +
-                                        normalizarId(
-                                                parametroId
-                                        )
-                        );
-
-                        ownedParameter.setAttribute(
-                                "name",
-                                texto(
-                                        parametro.get(
-                                                "nombre"
-                                        )
-                                )
-                        );
-
-                        ownedParameter.setAttribute(
-                                "type",
-                                "primitive-" +
-                                        normalizarId(
-                                                texto(
-                                                        parametro.get(
-                                                                "tipo"
-                                                        )
-                                                )
-                                        )
-                        );
-
-                        String direccion =
-                                texto(
-                                        parametro.get(
-                                                "direccion"
-                                        )
-                                );
-
-                        if (
-                                direccion == null ||
-                                direccion.isBlank()
-                        ) {
-
-                            direccion =
-                                    "in";
-                        }
-
-                        ownedParameter.setAttribute(
-                                "direction",
-                                direccion
-                        );
-
-                        ownedOperation.appendChild(
-                                ownedParameter
-                        );
-                    }
-
-                    elementoXmi.appendChild(
-                            ownedOperation
-                    );
-                }
+                agregarOperacionesElementoXmi(
+                        document,
+                        elementoXmi,
+                        obtenerLista(elemento.get("operaciones"))
+                );
 
                 /*
                  * ========================================================
@@ -691,13 +449,6 @@ public class XmiExportService {
              * RELACIONES
              * ============================================================
              */
-
-            List<Map<String, Object>> relaciones =
-                    obtenerLista(
-                            contenido.get(
-                                    "relaciones"
-                            )
-                    );
 
             for (
                     Map<String, Object> relacion :
@@ -918,9 +669,13 @@ public class XmiExportService {
 
                 /*
                  * ========================================================
-                 * ASOCIACIÓN / AGREGACIÓN / COMPOSICIÓN
+                 * ASOCIACIÓN / AGREGACIÓN / COMPOSICIÓN / CLASE_ASOCIACION
                  * ========================================================
                  */
+
+                boolean esClaseAsocRel =
+                        "CLASE_ASOCIACION".equalsIgnoreCase(tipo) ||
+                        "ASOCIACION_CLASE".equalsIgnoreCase(tipo);
 
                 Element association =
                         document.createElementNS(
@@ -928,11 +683,65 @@ public class XmiExportService {
                                 "packagedElement"
                         );
 
+                String xmiTypeAsoc =
+                        esClaseAsocRel
+                                ? "uml:AssociationClass"
+                                : "uml:Association";
+
                 association.setAttributeNS(
                         XMI_NS,
                         "xmi:type",
-                        "uml:Association"
+                        xmiTypeAsoc
                 );
+
+                String nombreAsoc = texto(relacion.get("rolDestino"));
+                if (nombreAsoc.isBlank()) {
+                    nombreAsoc = texto(relacion.get("rolOrigen"));
+                }
+
+                Map<String, Object> elementoAsociado = null;
+                if (esClaseAsocRel) {
+                    for (Map<String, Object> elem : elementos) {
+                        String eId = texto(elem.get("id"));
+                        String eNombre = texto(elem.get("nombre"));
+                        String eEst = texto(elem.get("estereotipo"));
+                        if (eId.equals(origen) || eId.equals(destino)) continue;
+                        if ("association".equalsIgnoreCase(eEst) ||
+                            (nombreAsoc != null && !nombreAsoc.isBlank() && nombreAsoc.equalsIgnoreCase(eNombre))) {
+                            elementoAsociado = elem;
+                            break;
+                        }
+                    }
+
+                    if (elementoAsociado != null && (nombreAsoc == null || nombreAsoc.isBlank())) {
+                        nombreAsoc = texto(elementoAsociado.get("nombre"));
+                    }
+                    if (nombreAsoc == null || nombreAsoc.isBlank()) {
+                        nombreAsoc = "ClaseAsociacion";
+                    }
+
+                    association.setAttribute(
+                            "name",
+                            nombreAsoc
+                    );
+                    association.setAttribute(
+                            "visibility",
+                            "public"
+                    );
+
+                    if (elementoAsociado != null) {
+                        agregarAtributosElementoXmi(
+                                document,
+                                association,
+                                obtenerLista(elementoAsociado.get("atributos"))
+                        );
+                        agregarOperacionesElementoXmi(
+                                document,
+                                association,
+                                obtenerLista(elementoAsociado.get("operaciones"))
+                        );
+                    }
+                }
 
                 association.setAttributeNS(
                         XMI_NS,
@@ -985,11 +794,7 @@ public class XmiExportService {
                                 document,
                                 end1Id,
                                 origenXmi,
-                                texto(
-                                        relacion.get(
-                                                "rolOrigen"
-                                        )
-                                ),
+                                esClaseAsocRel ? null : texto(relacion.get("rolOrigen")),
                                 texto(
                                         relacion.get(
                                                 "multiplicidadOrigen"
@@ -1009,11 +814,7 @@ public class XmiExportService {
                                 document,
                                 end2Id,
                                 destinoXmi,
-                                texto(
-                                        relacion.get(
-                                                "rolDestino"
-                                        )
-                                ),
+                                esClaseAsocRel ? null : texto(relacion.get("rolDestino")),
                                 texto(
                                         relacion.get(
                                                 "multiplicidadDestino"
@@ -1090,6 +891,70 @@ public class XmiExportService {
         }
     }
 
+    private void agregarAtributosElementoXmi(
+            Document document,
+            Element elementoXmi,
+            List<Map<String, Object>> atributos
+    ) {
+        for (Map<String, Object> atributo : atributos) {
+            Element propiedad = document.createElementNS(UML_NS, "ownedAttribute");
+            propiedad.setAttributeNS(XMI_NS, "xmi:type", "uml:Property");
+            String atributoId = texto(atributo.get("id"));
+            propiedad.setAttributeNS(XMI_NS, "xmi:id", "attribute-" + normalizarId(atributoId));
+            propiedad.setAttribute("name", texto(atributo.get("nombre")));
+            propiedad.setAttribute("visibility", convertirVisibilidad(texto(atributo.get("visibilidad"))));
+
+            String tipoAtributo = texto(atributo.get("tipo"));
+            propiedad.setAttribute("type", "primitive-" + normalizarId(tipoAtributo));
+
+            if (booleano(atributo.get("estatico"))) {
+                propiedad.setAttribute("isStatic", "true");
+            }
+            if (booleano(atributo.get("derivado"))) {
+                propiedad.setAttribute("isDerived", "true");
+            }
+
+            propiedad.setAttribute("lower", convertirLimiteInferior(texto(atributo.get("multiplicidad"))));
+            propiedad.setAttribute("upper", convertirLimiteSuperior(texto(atributo.get("multiplicidad"))));
+
+            elementoXmi.appendChild(propiedad);
+        }
+    }
+
+    private void agregarOperacionesElementoXmi(
+            Document document,
+            Element elementoXmi,
+            List<Map<String, Object>> operaciones
+    ) {
+        for (Map<String, Object> operacion : operaciones) {
+            Element ownedOperation = document.createElementNS(UML_NS, "ownedOperation");
+            ownedOperation.setAttributeNS(XMI_NS, "xmi:type", "uml:Operation");
+            String operacionId = texto(operacion.get("id"));
+            ownedOperation.setAttributeNS(XMI_NS, "xmi:id", "operation-" + normalizarId(operacionId));
+            ownedOperation.setAttribute("name", texto(operacion.get("nombre")));
+            ownedOperation.setAttribute("visibility", convertirVisibilidad(texto(operacion.get("visibilidad"))));
+
+            List<Map<String, Object>> parametros = obtenerLista(operacion.get("parametros"));
+            for (Map<String, Object> parametro : parametros) {
+                Element ownedParameter = document.createElementNS(UML_NS, "ownedParameter");
+                ownedParameter.setAttributeNS(XMI_NS, "xmi:type", "uml:Parameter");
+                String parametroId = texto(parametro.get("id"));
+                ownedParameter.setAttributeNS(XMI_NS, "xmi:id", "parameter-" + normalizarId(parametroId));
+                ownedParameter.setAttribute("name", texto(parametro.get("nombre")));
+                ownedParameter.setAttribute("type", "primitive-" + normalizarId(texto(parametro.get("tipo"))));
+
+                String direccion = texto(parametro.get("direccion"));
+                if (direccion == null || direccion.isBlank()) {
+                    direccion = "in";
+                }
+                ownedParameter.setAttribute("direction", direccion);
+                ownedOperation.appendChild(ownedParameter);
+            }
+
+            elementoXmi.appendChild(ownedOperation);
+        }
+    }
+
     private Element crearAssociationEnd(
             Document document,
             String id,
@@ -1133,18 +998,82 @@ public class XmiExportService {
             );
         }
 
-        end.setAttribute(
-                "lower",
+        String lower =
                 convertirLimiteInferior(
                         multiplicidad
-                )
+                );
+
+        String upper =
+                convertirLimiteSuperior(
+                        multiplicidad
+                );
+
+        end.setAttribute(
+                "lower",
+                lower
         );
 
         end.setAttribute(
                 "upper",
-                convertirLimiteSuperior(
-                        multiplicidad
-                )
+                upper
+        );
+
+        Element lowerElem =
+                document.createElementNS(
+                        UML_NS,
+                        "lowerValue"
+                );
+        lowerElem.setAttributeNS(
+                XMI_NS,
+                "xmi:type",
+                "uml:LiteralInteger"
+        );
+        lowerElem.setAttributeNS(
+                XMI_NS,
+                "xmi:id",
+                id + "-lower"
+        );
+        lowerElem.setAttribute(
+                "value",
+                lower
+        );
+        end.appendChild(
+                lowerElem
+        );
+
+        Element upperElem =
+                document.createElementNS(
+                        UML_NS,
+                        "upperValue"
+                );
+        if ("*".equals(upper)) {
+            upperElem.setAttributeNS(
+                    XMI_NS,
+                    "xmi:type",
+                    "uml:LiteralUnlimitedNatural"
+            );
+            upperElem.setAttribute(
+                    "value",
+                    "*"
+            );
+        } else {
+            upperElem.setAttributeNS(
+                    XMI_NS,
+                    "xmi:type",
+                    "uml:LiteralInteger"
+            );
+            upperElem.setAttribute(
+                    "value",
+                    upper
+            );
+        }
+        upperElem.setAttributeNS(
+                XMI_NS,
+                "xmi:id",
+                id + "-upper"
+        );
+        end.appendChild(
+                upperElem
         );
 
         if (

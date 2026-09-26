@@ -43,7 +43,7 @@ public class UmlImageAiController {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(resultado.toString());
 
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
 
             return ResponseEntity
                     .badRequest()
@@ -57,10 +57,16 @@ public class UmlImageAiController {
 
             e.printStackTrace();
 
+            String msg = e.getMessage() != null && !e.getMessage().isBlank()
+                    ? e.getMessage()
+                    : "Error procesando la imagen con Gemini.";
+
             return ResponseEntity
                     .internalServerError()
                     .body(
-                            "{\"error\":\"Error procesando la imagen con Gemini.\"}"
+                            "{\"error\":\""
+                                    + escapar(msg)
+                                    + "\"}"
                     );
         }
     }
@@ -75,20 +81,21 @@ public class UmlImageAiController {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<String> analizarAudio(
-            @RequestParam("audio") MultipartFile audio
+            @RequestParam("audio") MultipartFile audio,
+            @RequestParam(value = "contexto", required = false) String contexto
     ) {
 
         try {
 
             JsonNode resultado =
-                    umlImageAiService.analizarAudio(audio);
+                    umlImageAiService.analizarAudio(audio, contexto);
 
             return ResponseEntity
                     .ok()
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(resultado.toString());
 
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
 
             return ResponseEntity
                     .badRequest()
@@ -102,10 +109,16 @@ public class UmlImageAiController {
 
             e.printStackTrace();
 
+            String msg = e.getMessage() != null && !e.getMessage().isBlank()
+                    ? e.getMessage()
+                    : "Error procesando el audio con Gemini.";
+
             return ResponseEntity
                     .internalServerError()
                     .body(
-                            "{\"error\":\"Error procesando el audio con Gemini.\"}"
+                            "{\"error\":\""
+                                    + escapar(msg)
+                                    + "\"}"
                     );
         }
     }

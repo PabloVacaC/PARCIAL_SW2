@@ -11,7 +11,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { concatMap, finalize, from, map, of, toArray } from 'rxjs';
+import { Observable, catchError, concatMap, finalize, from, map, of, toArray } from 'rxjs';
 import { dia, shapes } from '@joint/core';
 import { ProyectoService } from '../../core/services/proyecto';
 import { InvitacionService, UsuarioBusqueda } from '../../core/services/invitacion';
@@ -81,7 +81,7 @@ export interface ElementoUML {
 
 export interface RelacionUML {
   id: string;
-  tipo: string; // ASOCIACION, GENERALIZACION, REALIZACION, AGREGACION, COMPOSICION, DEPENDENCIA
+  tipo: string; // ASOCIACION, GENERALIZACION, REALIZACION, AGREGACION, COMPOSICION, DEPENDENCIA, CLASE_ASOCIACION
   origen: string;
   destino: string;
   rolOrigen?: string | null;
@@ -90,10 +90,29 @@ export interface RelacionUML {
   multiplicidadDestino?: string | null;
 }
 
+export interface EliminacionRelacionIA {
+  origen: string;
+  destino: string;
+  tipo?: string | null;
+}
+
+export interface EliminacionPropiedadIA {
+  clase: string;
+  nombre: string;
+}
+
+export interface EliminacionesUML {
+  clases?: string[];
+  relaciones?: EliminacionRelacionIA[];
+  atributos?: EliminacionPropiedadIA[];
+  operaciones?: EliminacionPropiedadIA[];
+}
+
 export interface ContenidoUML {
   versionUML?: string;
   elementos?: ElementoUML[];
   relaciones?: RelacionUML[];
+  eliminaciones?: EliminacionesUML;
 }
 
 export interface ModeloUML {
@@ -804,6 +823,29 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
       `codeforge-voz-${Date.now()}.${extension}`
     );
 
+    // Enviar contexto de las clases y relaciones actuales en el lienzo para que la IA reconozca nombres existentes
+    if (this.elementos.length > 0 || this.relaciones.length > 0) {
+      const contextoActual = {
+        elementos: this.elementos.map(elem => ({
+          nombre: elem.nombre,
+          tipo: elem.tipo,
+          atributos: (elem.atributos ?? []).map(a => ({ nombre: a.nombre, tipo: a.tipo })),
+          operaciones: (elem.operaciones ?? []).map(o => ({ nombre: o.nombre, tipoRetorno: o.tipoRetorno }))
+        })),
+        relaciones: this.relaciones.map(rel => {
+          const nomOrigen = this.elementos.find(e => e.id === rel.origen)?.nombre || rel.origen;
+          const nomDestino = this.elementos.find(e => e.id === rel.destino)?.nombre || rel.destino;
+          return {
+            tipo: rel.tipo,
+            origen: nomOrigen,
+            destino: nomDestino,
+            claseAsociacion: rel.rolDestino || null
+          };
+        })
+      };
+      formData.append('contexto', JSON.stringify(contextoActual));
+    }
+
     console.log(
       'CODEFORGE IA AUDIO: enviando grabación al backend:',
       this.audioMimeType,
@@ -838,20 +880,48 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
           const elementos = contenidoNormalizado.elementos ?? [];
           const relaciones = contenidoNormalizado.relaciones ?? [];
+          const eliminaciones = contenidoNormalizado.eliminaciones;
 
-          if (elementos.length === 0) {
+          const numElementos = elementos.length;
+          const numRelaciones = relaciones.length;
+          const numClasesEliminar = eliminaciones?.clases?.length ?? 0;
+          const numRelacionesEliminar = eliminaciones?.relaciones?.length ?? 0;
+          const numAtributosEliminar = eliminaciones?.atributos?.length ?? 0;
+          const numOperacionesEliminar = eliminaciones?.operaciones?.length ?? 0;
+
+          const totalAcciones = numElementos + numRelaciones + numClasesEliminar +
+            numRelacionesEliminar + numAtributosEliminar + numOperacionesEliminar;
+
+          if (totalAcciones === 0) {
             this.audioProcesando = false;
             this.changeDetector.detectChanges();
             alert(
-              'La IA no pudo construir elementos UML a partir de la instrucción de voz.'
+              'La IA no detectó elementos para crear ni para eliminar en la instrucción de voz.'
             );
             return;
           }
 
+          const detalles: string[] = [];
+          if (numElementos > 0) detalles.push(`• Crear ${numElementos} elemento(s) UML`);
+          if (numRelaciones > 0) detalles.push(`• Crear ${numRelaciones} relación(es) UML`);
+          if (numClasesEliminar > 0) detalles.push(`• Eliminar clase(s): ${eliminaciones!.clases!.join(', ')}`);
+          if (numRelacionesEliminar > 0) {
+            const relsDesc = eliminaciones!.relaciones!.map(r => `${r.origen} ── ${r.destino}`).join(', ');
+            detalles.push(`• Eliminar relación(es): ${relsDesc}`);
+          }
+          if (numAtributosEliminar > 0) {
+            const atrsDesc = eliminaciones!.atributos!.map(a => `${a.clase ? a.clase + '.' : ''}${a.nombre}`).join(', ');
+            detalles.push(`• Eliminar atributo(s): ${atrsDesc}`);
+          }
+          if (numOperacionesEliminar > 0) {
+            const opsDesc = eliminaciones!.operaciones!.map(o => `${o.clase ? o.clase + '.' : ''}${o.nombre}()`).join(', ');
+            detalles.push(`• Eliminar método(s): ${opsDesc}`);
+          }
+
           const confirmar = confirm(
-            `La IA generó ${elementos.length} elemento(s) UML y ${relaciones.length} relación(es) a partir de tu voz.\n\n` +
-            'Se agregarán al modelo actual sin eliminar lo que ya tienes.\n\n' +
-            '¿Deseas agregarlos al lienzo?'
+            `La IA identificó las siguientes acciones a partir de tu voz:\n\n` +
+            detalles.join('\n') +
+            `\n\n¿Deseas aplicar estos cambios al modelo?`
           );
 
           if (!confirmar) {
@@ -899,24 +969,39 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private extraerContenidoUmlDeRespuestaIA(respuesta: any): ContenidoUML {
-    if (respuesta?.elementos || respuesta?.relaciones) {
-      return respuesta as ContenidoUML;
+    if (typeof respuesta === 'string') {
+      try {
+        let texto = respuesta.trim();
+        if (texto.startsWith('```json')) {
+          texto = texto.substring(7);
+        } else if (texto.startsWith('```')) {
+          texto = texto.substring(3);
+        }
+        if (texto.endsWith('```')) {
+          texto = texto.substring(0, texto.length - 3);
+        }
+        respuesta = JSON.parse(texto.trim());
+      } catch (e) {
+        console.warn('CODEFORGE IA: error parseando respuesta como JSON:', e);
+      }
     }
 
-    if (respuesta?.contenidoJson?.elementos || respuesta?.contenidoJson?.relaciones) {
-      return respuesta.contenidoJson as ContenidoUML;
-    }
-
-    if (respuesta?.contenido?.elementos || respuesta?.contenido?.relaciones) {
-      return respuesta.contenido as ContenidoUML;
-    }
-
-    if (respuesta?.uml?.elementos || respuesta?.uml?.relaciones) {
-      return respuesta.uml as ContenidoUML;
-    }
-
-    if (respuesta?.modelo?.contenidoJson) {
-      return respuesta.modelo.contenidoJson as ContenidoUML;
+    if (respuesta && typeof respuesta === 'object') {
+      if (respuesta.elementos || respuesta.relaciones || respuesta.eliminaciones) {
+        return respuesta as ContenidoUML;
+      }
+      if (respuesta.contenidoJson) {
+        return this.extraerContenidoUmlDeRespuestaIA(respuesta.contenidoJson);
+      }
+      if (respuesta.contenido) {
+        return this.extraerContenidoUmlDeRespuestaIA(respuesta.contenido);
+      }
+      if (respuesta.uml) {
+        return this.extraerContenidoUmlDeRespuestaIA(respuesta.uml);
+      }
+      if (respuesta.modelo?.contenidoJson) {
+        return this.extraerContenidoUmlDeRespuestaIA(respuesta.modelo.contenidoJson);
+      }
     }
 
     return {};
@@ -963,6 +1048,47 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
       Array.isArray(contenido?.relaciones)
         ? contenido!.relaciones!
         : [];
+
+    const eliminacionesOriginales = contenido?.eliminaciones;
+    const eliminaciones: EliminacionesUML = {
+      clases: Array.isArray(eliminacionesOriginales?.clases)
+        ? eliminacionesOriginales!.clases!
+            .map(c => {
+              if (typeof c === 'string') return c.trim();
+              if (c && typeof c === 'object') return String((c as any).nombre ?? (c as any).clase ?? (c as any).id ?? '').trim();
+              return String(c ?? '').trim();
+            })
+            .filter(c => !!c)
+        : [],
+      relaciones: Array.isArray(eliminacionesOriginales?.relaciones)
+        ? eliminacionesOriginales!.relaciones!
+            .map(r => {
+              const orig = String(r?.origen ?? (r as any)?.claseOrigen ?? (r as any)?.from ?? (r as any)?.source ?? '').trim();
+              const dest = String(r?.destino ?? (r as any)?.claseDestino ?? (r as any)?.to ?? (r as any)?.target ?? '').trim();
+              const tipo = r?.tipo ? String(r.tipo).trim() : null;
+              return { origen: orig, destino: dest, tipo };
+            })
+            .filter(r => !!r.origen && !!r.destino)
+        : [],
+      atributos: Array.isArray(eliminacionesOriginales?.atributos)
+        ? eliminacionesOriginales!.atributos!
+            .map(a => {
+              const clase = String(a?.clase ?? (a as any)?.elemento ?? (a as any)?.className ?? '').trim();
+              const nombre = String(a?.nombre ?? (a as any)?.atributo ?? (a as any)?.name ?? '').trim();
+              return { clase, nombre };
+            })
+            .filter(a => !!a.nombre)
+        : [],
+      operaciones: Array.isArray(eliminacionesOriginales?.operaciones)
+        ? eliminacionesOriginales!.operaciones!
+            .map(o => {
+              const clase = String(o?.clase ?? (o as any)?.elemento ?? (o as any)?.className ?? '').trim();
+              const nombre = String(o?.nombre ?? (o as any)?.operacion ?? (o as any)?.metodo ?? (o as any)?.name ?? '').trim();
+              return { clase, nombre };
+            })
+            .filter(o => !!o.nombre)
+        : []
+    };
 
     const elementos = elementosOriginales
       .filter(elemento => !!elemento && !!String(elemento.nombre ?? '').trim())
@@ -1013,28 +1139,37 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
       }));
 
     const relaciones = relacionesOriginales
-      .filter(relacion =>
-        !!relacion &&
-        !!relacion.origen &&
-        !!relacion.destino &&
-        String(relacion.origen).trim() !== String(relacion.destino).trim()
-      )
-      .map((relacion, index) => ({
-        ...relacion,
-        id: relacion.id?.trim() || this.generarIdTemporalIA(`relacion-${index}`),
-        tipo: this.normalizarTipoRelacionIA(relacion.tipo),
-        origen: String(relacion.origen).trim(),
-        destino: String(relacion.destino).trim(),
-        rolOrigen: relacion.rolOrigen ?? null,
-        rolDestino: relacion.rolDestino ?? null,
-        multiplicidadOrigen: relacion.multiplicidadOrigen ?? null,
-        multiplicidadDestino: relacion.multiplicidadDestino ?? null
-      }));
+      .filter(relacion => {
+        if (!relacion || !relacion.origen || !relacion.destino) return false;
+        return true;
+      })
+      .map((relacion, index) => {
+        const origen = String(relacion.origen).trim();
+        const destino = String(relacion.destino).trim();
+        const esMismo = origen === destino;
+        let tipo = this.normalizarTipoRelacionIA(relacion.tipo);
+        if (esMismo) {
+          tipo = 'RECURSIVA';
+        }
+
+        return {
+          ...relacion,
+          id: relacion.id?.trim() || this.generarIdTemporalIA(`relacion-${index}`),
+          tipo,
+          origen,
+          destino,
+          rolOrigen: relacion.rolOrigen ?? null,
+          rolDestino: relacion.rolDestino ?? null,
+          multiplicidadOrigen: relacion.multiplicidadOrigen ?? (esMismo ? '1' : null),
+          multiplicidadDestino: relacion.multiplicidadDestino ?? (esMismo ? '0..*' : null)
+        };
+      });
 
     return {
       versionUML: contenido?.versionUML || '2.5',
       elementos,
-      relaciones
+      relaciones,
+      eliminaciones
     };
   }
 
@@ -1061,7 +1196,10 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
       'REALIZACION',
       'AGREGACION',
       'COMPOSICION',
-      'DEPENDENCIA'
+      'DEPENDENCIA',
+      'CLASE_ASOCIACION',
+      'ASOCIACION_CLASE',
+      'RECURSIVA'
     ];
 
     return tiposPermitidos.includes(tipoNormalizado)
@@ -1087,27 +1225,39 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    const idModelo = this.modeloActual.idModelo;
     const elementos = contenido.elementos ?? [];
     const relaciones = contenido.relaciones ?? [];
+    const eliminaciones = contenido.eliminaciones;
     const mapaIds = new Map<string, string>();
 
-    from(elementos)
+    const tareasEliminacion = this.prepararTareasEliminacionIA(idModelo, eliminaciones);
+
+    const ejecutarEliminaciones$ = tareasEliminacion.length > 0
+      ? from(tareasEliminacion).pipe(
+          concatMap(tarea => tarea()),
+          toArray()
+        )
+      : of([]);
+
+    const ejecutarElementos$ = elementos.length > 0
+      ? from(elementos).pipe(
+          concatMap(elemento => this.guardarElementoGeneradoPorIA(elemento, mapaIds)),
+          toArray()
+        )
+      : of([]);
+
+    const ejecutarRelaciones$ = relaciones.length > 0
+      ? from(relaciones).pipe(
+          concatMap(relacion => this.guardarRelacionGeneradaPorIA(relacion, mapaIds)),
+          toArray()
+        )
+      : of([]);
+
+    ejecutarEliminaciones$
       .pipe(
-        concatMap(elemento =>
-          this.guardarElementoGeneradoPorIA(
-            elemento,
-            mapaIds
-          )
-        ),
-        toArray(),
-        concatMap(() => from(relaciones)),
-        concatMap(relacion =>
-          this.guardarRelacionGeneradaPorIA(
-            relacion,
-            mapaIds
-          )
-        ),
-        toArray(),
+        concatMap(() => ejecutarElementos$),
+        concatMap(() => ejecutarRelaciones$),
         finalize(() => {
           this.actualizarContenidoModeloLocal();
           this.iaProcesando = false;
@@ -1120,7 +1270,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
       .subscribe({
         next: () => {
           console.log(
-            'CODEFORGE IA: UML agregado correctamente al modelo.'
+            'CODEFORGE IA: cambios aplicados correctamente al modelo.'
           );
           this.changeDetector.detectChanges();
         },
@@ -1131,10 +1281,254 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
           );
           alert(
             error.error?.message ??
-            'La IA generó el UML, pero ocurrió un error al agregarlo al modelo.'
+            'Ocurrió un error al aplicar las modificaciones al modelo.'
           );
         }
       });
+  }
+
+  private normalizarNombreParaBusqueda(texto?: string): string {
+    if (!texto) return '';
+    let t = String(texto).trim().toLowerCase();
+    t = t.replace(/^la clase\s+/, '')
+         .replace(/^el elemento\s+/, '')
+         .replace(/^clase\s+/, '')
+         .replace(/^elemento\s+/, '')
+         .replace(/^el atributo\s+/, '')
+         .replace(/^el campo\s+/, '')
+         .replace(/^atributo\s+/, '')
+         .replace(/^campo\s+/, '')
+         .replace(/^el método\s+/, '')
+         .replace(/^el metodo\s+/, '')
+         .replace(/^la operación\s+/, '')
+         .replace(/^la operacion\s+/, '')
+         .replace(/^la función\s+/, '')
+         .replace(/^la funcion\s+/, '')
+         .replace(/^método\s+/, '')
+         .replace(/^metodo\s+/, '')
+         .replace(/^operación\s+/, '')
+         .replace(/^operacion\s+/, '')
+         .replace(/^función\s+/, '')
+         .replace(/^funcion\s+/, '')
+         .replace(/\(\)$/, '')
+         .trim();
+    return t;
+  }
+
+  private prepararTareasEliminacionIA(
+    idModelo: number,
+    eliminaciones?: EliminacionesUML
+  ): Array<() => Observable<any>> {
+    if (!eliminaciones) return [];
+
+    const tareas: Array<() => Observable<any>> = [];
+
+    // 1. Eliminar atributos indicados por voz
+    for (const atr of (eliminaciones.atributos ?? [])) {
+      tareas.push(() => {
+        const nomAtr = this.normalizarNombreParaBusqueda(atr.nombre);
+        const nomClase = this.normalizarNombreParaBusqueda(atr.clase);
+
+        let elem = this.elementos.find(
+          e => e.id === atr.clase ||
+               e.nombre.trim().toLowerCase() === atr.clase.trim().toLowerCase() ||
+               (nomClase && this.normalizarNombreParaBusqueda(e.nombre) === nomClase)
+        );
+
+        if (!elem) {
+          elem = this.elementos.find(e =>
+            (e.atributos ?? []).some(a => this.normalizarNombreParaBusqueda(a.nombre) === nomAtr)
+          );
+        }
+
+        if (!elem || !elem.atributos) {
+          console.warn('CODEFORGE IA: no se encontró clase para eliminar atributo:', atr);
+          return of(null);
+        }
+
+        const atrEncontrado = elem.atributos.find(
+          a => a.id === atr.nombre ||
+               a.nombre.trim().toLowerCase() === atr.nombre.trim().toLowerCase() ||
+               this.normalizarNombreParaBusqueda(a.nombre) === nomAtr
+        );
+        if (!atrEncontrado) {
+          console.warn('CODEFORGE IA: no se encontró atributo en clase:', atr);
+          return of(null);
+        }
+
+        const elemTarget = elem;
+        return this.http
+          .delete(`http://localhost:8080/api/modelos/${idModelo}/elementos/${elemTarget.id}/atributos/${atrEncontrado.id}`)
+          .pipe(
+            map(() => {
+              elemTarget.atributos = (elemTarget.atributos ?? []).filter(a => a.id !== atrEncontrado.id);
+              if (this.elementoSeleccionado?.id === elemTarget.id) {
+                this.elementoSeleccionado = { ...elemTarget };
+              }
+              return null;
+            }),
+            catchError(err => {
+              console.warn('CODEFORGE IA: error en delete de atributo:', atr, err);
+              return of(null);
+            })
+          );
+      });
+    }
+
+    // 2. Eliminar métodos u operaciones indicadas por voz
+    for (const op of (eliminaciones.operaciones ?? [])) {
+      tareas.push(() => {
+        const nomOp = this.normalizarNombreParaBusqueda(op.nombre);
+        const nomClase = this.normalizarNombreParaBusqueda(op.clase);
+
+        let elem = this.elementos.find(
+          e => e.id === op.clase ||
+               e.nombre.trim().toLowerCase() === op.clase.trim().toLowerCase() ||
+               (nomClase && this.normalizarNombreParaBusqueda(e.nombre) === nomClase)
+        );
+
+        if (!elem) {
+          elem = this.elementos.find(e =>
+            (e.operaciones ?? []).some(o => this.normalizarNombreParaBusqueda(o.nombre) === nomOp)
+          );
+        }
+
+        if (!elem || !elem.operaciones) {
+          console.warn('CODEFORGE IA: no se encontró clase para eliminar operación:', op);
+          return of(null);
+        }
+
+        const opEncontrada = elem.operaciones.find(
+          o => o.id === op.nombre ||
+               o.nombre.trim().toLowerCase() === op.nombre.trim().toLowerCase() ||
+               this.normalizarNombreParaBusqueda(o.nombre) === nomOp
+        );
+        if (!opEncontrada) {
+          console.warn('CODEFORGE IA: no se encontró operación en clase:', op);
+          return of(null);
+        }
+
+        const elemTarget = elem;
+        return this.http
+          .delete(`http://localhost:8080/api/modelos/${idModelo}/elementos/${elemTarget.id}/operaciones/${opEncontrada.id}`)
+          .pipe(
+            map(() => {
+              elemTarget.operaciones = (elemTarget.operaciones ?? []).filter(o => o.id !== opEncontrada.id);
+              if (this.elementoSeleccionado?.id === elemTarget.id) {
+                this.elementoSeleccionado = { ...elemTarget };
+              }
+              return null;
+            }),
+            catchError(err => {
+              console.warn('CODEFORGE IA: error en delete de operación:', op, err);
+              return of(null);
+            })
+          );
+      });
+    }
+
+    // 3. Eliminar relaciones indicadas por voz
+    for (const rel of (eliminaciones.relaciones ?? [])) {
+      tareas.push(() => {
+        const nomO = this.normalizarNombreParaBusqueda(rel.origen);
+        const nomD = this.normalizarNombreParaBusqueda(rel.destino);
+
+        const elemOrigen = this.elementos.find(
+          e => e.id === rel.origen ||
+               e.nombre.trim().toLowerCase() === rel.origen.trim().toLowerCase() ||
+               this.normalizarNombreParaBusqueda(e.nombre) === nomO
+        );
+        const elemDestino = this.elementos.find(
+          e => e.id === rel.destino ||
+               e.nombre.trim().toLowerCase() === rel.destino.trim().toLowerCase() ||
+               this.normalizarNombreParaBusqueda(e.nombre) === nomD
+        );
+
+        let relEncontrada: RelacionUML | undefined;
+
+        if (elemOrigen && elemDestino) {
+          relEncontrada = this.relaciones.find(
+            r =>
+              ((r.origen === elemOrigen.id && r.destino === elemDestino.id) ||
+               (r.origen === elemDestino.id && r.destino === elemOrigen.id)) &&
+              (!rel.tipo || r.tipo.toUpperCase() === rel.tipo.toUpperCase())
+          ) || this.relaciones.find(
+            r =>
+              (r.origen === elemOrigen.id && r.destino === elemDestino.id) ||
+              (r.origen === elemDestino.id && r.destino === elemOrigen.id)
+          );
+        }
+
+        if (!relEncontrada) {
+          relEncontrada = this.relaciones.find(
+            r =>
+              r.id === rel.origen ||
+              r.id === rel.destino ||
+              (r.rolDestino && this.normalizarNombreParaBusqueda(r.rolDestino) === nomO) ||
+              (r.rolDestino && this.normalizarNombreParaBusqueda(r.rolDestino) === nomD)
+          );
+        }
+
+        if (!relEncontrada) {
+          console.warn('CODEFORGE IA: no se encontró relación a eliminar:', rel);
+          return of(null);
+        }
+
+        const idRel = relEncontrada.id;
+        return this.http
+          .delete(`http://localhost:8080/api/modelos/${idModelo}/relaciones/${idRel}`)
+          .pipe(
+            map(() => {
+              this.relaciones = this.relaciones.filter(r => r.id !== idRel);
+              if (this.relacionSeleccionada?.id === idRel) {
+                this.relacionSeleccionada = null;
+              }
+              return null;
+            }),
+            catchError(err => {
+              console.warn('CODEFORGE IA: error en delete de relación:', rel, err);
+              return of(null);
+            })
+          );
+      });
+    }
+
+    // 4. Eliminar clases / elementos indicados por voz
+    for (const nombreClase of (eliminaciones.clases ?? [])) {
+      tareas.push(() => {
+        const nomLimpio = this.normalizarNombreParaBusqueda(nombreClase);
+        const elem = this.elementos.find(
+          e => e.id === nombreClase ||
+               e.nombre.trim().toLowerCase() === nombreClase.trim().toLowerCase() ||
+               this.normalizarNombreParaBusqueda(e.nombre) === nomLimpio
+        );
+        if (!elem) {
+          console.warn('CODEFORGE IA: no se encontró clase a eliminar:', nombreClase);
+          return of(null);
+        }
+
+        return this.http
+          .delete(`http://localhost:8080/api/modelos/${idModelo}/elementos/${elem.id}`)
+          .pipe(
+            map(() => {
+              this.elementos = this.elementos.filter(e => e.id !== elem.id);
+              this.relaciones = this.relaciones.filter(
+                r => r.origen !== elem.id && r.destino !== elem.id && r.rolDestino !== elem.nombre
+              );
+              if (this.elementoSeleccionado?.id === elem.id) {
+                this.elementoSeleccionado = null;
+              }
+              return null;
+            }),
+            catchError(err => {
+              console.warn('CODEFORGE IA: error en delete de clase:', nombreClase, err);
+              return of(null);
+            })
+          );
+      });
+    }
+
+    return tareas;
   }
 
   private guardarElementoGeneradoPorIA(
@@ -1372,7 +1766,11 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
       mapaIds
     );
 
-    if (!origen || !destino || origen === destino) {
+    const esMismo = origen === destino;
+    const tipoNormalizado = this.normalizarTipoRelacionIA(relacion.tipo);
+    const tipoFinal = esMismo ? 'RECURSIVA' : tipoNormalizado;
+
+    if (!origen || !destino) {
       console.warn(
         'CODEFORGE IA: relación ignorada porque no se encontraron sus elementos:',
         relacion
@@ -1382,7 +1780,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
     const existe = this.relaciones.some(
       r =>
-        r.tipo === relacion.tipo &&
+        r.tipo === tipoFinal &&
         r.origen === origen &&
         r.destino === destino
     );
@@ -1392,13 +1790,13 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const dto = {
-      tipo: this.normalizarTipoRelacionIA(relacion.tipo),
+      tipo: tipoFinal,
       origen,
       destino,
       rolOrigen: relacion.rolOrigen?.trim() || null,
       rolDestino: relacion.rolDestino?.trim() || null,
-      multiplicidadOrigen: relacion.multiplicidadOrigen || null,
-      multiplicidadDestino: relacion.multiplicidadDestino || null
+      multiplicidadOrigen: relacion.multiplicidadOrigen || (esMismo ? '1' : null),
+      multiplicidadDestino: relacion.multiplicidadDestino || (esMismo ? '0..*' : null)
     };
 
     return this.http
@@ -2238,12 +2636,11 @@ exportarJson(): void {
         }
       }),
       validateConnection: (cellViewS, magnetS, cellViewT) => {
-        if (cellViewS === cellViewT) return false;
         return cellViewT.model.isElement();
       }
     });
 
-    // EVENTO STARUML: Jalar relación interactiva arrastrando desde un elemento a otro
+    // EVENTO STARUML: Jalar relación interactiva arrastrando desde un elemento a otro (o a sí mismo)
     this.paper.on('link:connect', (linkView: dia.LinkView) => {
       const link = linkView.model;
       const source = link.source();
@@ -2253,15 +2650,16 @@ exportarJson(): void {
 
       link.remove();
 
-      if (sourceId && targetId && sourceId !== targetId) {
+      if (sourceId && targetId) {
+        const esMismo = sourceId === targetId;
         this.nuevaRelacion = {
-          tipo: 'ASOCIACION',
+          tipo: esMismo ? 'RECURSIVA' : 'ASOCIACION',
           origen: sourceId,
           destino: targetId,
           rolOrigen: '',
           rolDestino: '',
           multiplicidadOrigen: '1',
-          multiplicidadDestino: '1'
+          multiplicidadDestino: esMismo ? '0..*' : '1'
         };
         this.mostrarModalRelacion = true;
         this.changeDetector.detectChanges();
@@ -2285,9 +2683,15 @@ exportarJson(): void {
       this.panOriginTy = current.ty;
     });
 
-    // Evento: Click en elemento UML
+    // Evento: Click en elemento UML (incluyendo clase de asociación)
     this.paper.on('element:pointerclick', (elementView) => {
       const idElemento = String(elementView.model.id);
+
+      if (idElemento.startsWith('assoc-class-')) {
+        const idRel = idElemento.replace('assoc-class-', '');
+        this.seleccionarRelacion(idRel);
+        return;
+      }
 
       if (this.modoConexion) {
         this.procesarClickConexion(idElemento);
@@ -2299,7 +2703,8 @@ exportarJson(): void {
     // Evento: Click en enlace / relación
     this.paper.on('link:pointerclick', (linkView) => {
       const idRelacion = String(linkView.model.id);
-      this.seleccionarRelacion(idRelacion);
+      const idReal = idRelacion.startsWith('assoc-conn-') ? idRelacion.replace('assoc-conn-', '') : idRelacion;
+      this.seleccionarRelacion(idReal);
     });
 
     // Evento: Click en el fondo del lienzo (deseleccionar)
@@ -2399,6 +2804,10 @@ exportarJson(): void {
       colorBorde = '#34d399';
       colorHeader = '#064e3b';
       textoEstereotipo = '«enumeration»';
+    } else if (elemento.estereotipo === 'association') {
+      colorBorde = '#06b6d4';
+      colorHeader = '#164e63';
+      textoEstereotipo = '«association»';
     } else if (elemento.estereotipo) {
       textoEstereotipo = `«${elemento.estereotipo}»`;
     }
@@ -2464,6 +2873,7 @@ exportarJson(): void {
     }
 
     const links: dia.Link[] = [];
+    const extraCells: dia.Element[] = [];
 
     for (const relacion of this.relaciones) {
       const origen = this.graph.getCell(relacion.origen);
@@ -2473,54 +2883,125 @@ exportarJson(): void {
         continue;
       }
 
-      const link = new shapes.standard.Link({
-        id: relacion.id,
-        source: { id: relacion.origen },
-        target: { id: relacion.destino },
-        attrs: {
-          line: {
-            stroke: this.colorRelacion(relacion.tipo),
-            strokeWidth: 1.75,
-            strokeDasharray: this.dashRelacion(relacion.tipo),
-            sourceMarker: this.sourceMarkerRelacion(relacion.tipo),
-            targetMarker: this.targetMarkerRelacion(relacion.tipo)
-          }
-        }
-      });
+      const esClaseAsociacion =
+        (relacion.tipo ?? '').toUpperCase() === 'CLASE_ASOCIACION' ||
+        (relacion.tipo ?? '').toUpperCase() === 'ASOCIACION_CLASE';
 
-      // Etiquetas de multiplicidad / roles
-      const labels: any[] = [];
+      const esRecursiva =
+        relacion.origen === relacion.destino ||
+        (relacion.tipo ?? '').toUpperCase() === 'RECURSIVA';
 
-      if (relacion.multiplicidadOrigen || relacion.rolOrigen) {
-        const textoOrigen = [relacion.multiplicidadOrigen, relacion.rolOrigen].filter(Boolean).join(' ');
-        labels.push({
-          position: { distance: 0.18, offset: 14 },
-          attrs: {
-            text: {
-              text: textoOrigen,
-              fill: '#94a3b8',
-              fontSize: 10,
-              fontFamily: 'Inter, sans-serif'
+      let link: dia.Link;
+
+      if (esRecursiva) {
+        const elem = origen as dia.Element;
+        const bbox = elem.getBBox();
+        const loopOffset = 55;
+        const topY = bbox.y + Math.min(28, bbox.height * 0.25);
+        const bottomY = bbox.y + Math.max(bbox.height - 28, bbox.height * 0.75);
+        const loopX = bbox.x + bbox.width + loopOffset;
+
+        link = new shapes.standard.Link({
+          id: relacion.id,
+          source: {
+            id: relacion.origen,
+            anchor: {
+              name: 'right',
+              args: { dy: -Math.max(14, bbox.height * 0.25) }
             },
-            rect: { fill: '#0f172a', rx: 3, ry: 3 }
+            connectionPoint: { name: 'boundary' }
+          },
+          target: {
+            id: relacion.destino,
+            anchor: {
+              name: 'right',
+              args: { dy: Math.max(14, bbox.height * 0.25) }
+            },
+            connectionPoint: { name: 'boundary' }
+          },
+          router: {
+            name: 'orthogonal'
+          },
+          vertices: [
+            { x: loopX, y: topY },
+            { x: loopX, y: bottomY }
+          ],
+          attrs: {
+            line: {
+              stroke: this.colorRelacion(relacion.tipo || 'RECURSIVA'),
+              strokeWidth: 1.75,
+              strokeDasharray: this.dashRelacion(relacion.tipo),
+              sourceMarker: this.sourceMarkerRelacion(relacion.tipo),
+              targetMarker: this.targetMarkerRelacion(relacion.tipo || 'RECURSIVA')
+            }
+          }
+        });
+
+        // Al mover la clase, desplazar los vértices del lazo para que acompañen al elemento
+        elem.on('change:position', () => {
+          const currentBBox = elem.getBBox();
+          const curTopY = currentBBox.y + Math.min(28, currentBBox.height * 0.25);
+          const curBottomY = currentBBox.y + Math.max(currentBBox.height - 28, currentBBox.height * 0.75);
+          const curLoopX = currentBBox.x + currentBBox.width + loopOffset;
+          link.vertices([
+            { x: curLoopX, y: curTopY },
+            { x: curLoopX, y: curBottomY }
+          ]);
+        });
+      } else {
+        link = new shapes.standard.Link({
+          id: relacion.id,
+          source: { id: relacion.origen },
+          target: { id: relacion.destino },
+          attrs: {
+            line: {
+              stroke: this.colorRelacion(relacion.tipo),
+              strokeWidth: 1.75,
+              strokeDasharray: esClaseAsociacion ? '0' : this.dashRelacion(relacion.tipo),
+              sourceMarker: this.sourceMarkerRelacion(relacion.tipo),
+              targetMarker: this.targetMarkerRelacion(relacion.tipo)
+            }
           }
         });
       }
 
-      if (relacion.multiplicidadDestino || relacion.rolDestino) {
-        const textoDestino = [relacion.multiplicidadDestino, relacion.rolDestino].filter(Boolean).join(' ');
-        labels.push({
-          position: { distance: 0.82, offset: 14 },
-          attrs: {
-            text: {
-              text: textoDestino,
-              fill: '#94a3b8',
-              fontSize: 10,
-              fontFamily: 'Inter, sans-serif'
-            },
-            rect: { fill: '#0f172a', rx: 3, ry: 3 }
-          }
-        });
+      // Etiquetas de multiplicidad / roles
+      const labels: any[] = [];
+
+      if (relacion.multiplicidadOrigen || (!esClaseAsociacion && relacion.rolOrigen)) {
+        const textoOrigen = [relacion.multiplicidadOrigen, !esClaseAsociacion ? relacion.rolOrigen : null].filter(Boolean).join(' ');
+        if (textoOrigen) {
+          labels.push({
+            position: { distance: esRecursiva ? 0.15 : 0.18, offset: esRecursiva ? -14 : 14 },
+            attrs: {
+              text: {
+                text: textoOrigen,
+                fill: '#94a3b8',
+                fontSize: 10,
+                fontFamily: 'Inter, sans-serif'
+              },
+              rect: { fill: '#0f172a', rx: 3, ry: 3 }
+            }
+          });
+        }
+      }
+
+      if (relacion.multiplicidadDestino || (!esClaseAsociacion && relacion.rolDestino)) {
+        const textoDestino = [relacion.multiplicidadDestino, !esClaseAsociacion ? relacion.rolDestino : null].filter(Boolean).join(' ');
+        if (textoDestino) {
+          labels.push({
+            position: { distance: esRecursiva ? 0.85 : 0.82, offset: 14 },
+            attrs: {
+              text: {
+                text: textoDestino,
+                fill: '#94a3b8',
+                fontSize: 10,
+                fontFamily: 'Inter, sans-serif'
+              },
+              rect: { fill: '#0f172a', rx: 3, ry: 3 }
+            }
+          });
+        }
       }
 
       if (labels.length > 0) {
@@ -2528,6 +3009,58 @@ exportarJson(): void {
       }
 
       links.push(link);
+
+      // Si es Clase de Asociación, conectar la clase intermedia con línea punteada
+      if (esClaseAsociacion) {
+        const elemO = origen as dia.Element;
+        const elemD = destino as dia.Element;
+        const bboxO = elemO.getBBox();
+        const bboxD = elemD.getBBox();
+        const midX = (bboxO.x + bboxD.x) / 2;
+        const midY = (bboxO.y + bboxD.y) / 2;
+
+        const nombreOrigen = this.elementos.find(e => e.id === relacion.origen)?.nombre || 'A';
+        const nombreDestino = this.elementos.find(e => e.id === relacion.destino)?.nombre || 'B';
+        const nombreIntermedio = relacion.rolDestino?.trim() || relacion.rolOrigen?.trim() || `${nombreOrigen}_${nombreDestino}`;
+
+        // 1. Buscar si la clase intermedia existe como elemento real en this.elementos
+        const claseIntermediaExistente = this.elementos.find(
+          e => e.id !== relacion.origen && e.id !== relacion.destino &&
+               (e.nombre.trim().toLowerCase() === nombreIntermedio.trim().toLowerCase() ||
+                (e.estereotipo === 'association' && (e.id === relacion.rolDestino || e.nombre.toLowerCase() === nombreIntermedio.toLowerCase())))
+        ) || this.elementos.find(
+          e => e.id !== relacion.origen && e.id !== relacion.destino && e.estereotipo === 'association'
+        );
+
+        let intermediateId: string | null = null;
+
+        if (claseIntermediaExistente) {
+          intermediateId = String(claseIntermediaExistente.id);
+        } else if (this.graph.getCell(`assoc-class-${relacion.id}`)) {
+          intermediateId = `assoc-class-${relacion.id}`;
+        }
+
+        if (intermediateId && this.graph.getCell(intermediateId)) {
+          const linkConector = new shapes.standard.Link({
+            id: `assoc-conn-${relacion.id}`,
+            source: { id: intermediateId },
+            target: { id: relacion.id },
+            attrs: {
+              line: {
+                stroke: '#06b6d4',
+                strokeWidth: 1.5,
+                strokeDasharray: '5 5',
+                targetMarker: null
+              }
+            }
+          });
+          links.push(linkConector);
+        }
+      }
+    }
+
+    if (extraCells.length > 0) {
+      this.graph.addCells(extraCells);
     }
 
     if (links.length > 0) {
@@ -2551,6 +3084,11 @@ exportarJson(): void {
         return '#f43f5e';
       case 'DEPENDENCIA':
         return '#94a3b8';
+      case 'CLASE_ASOCIACION':
+      case 'ASOCIACION_CLASE':
+        return '#06b6d4';
+      case 'RECURSIVA':
+        return '#10b981';
       case 'ASOCIACION':
       default:
         return '#cbd5e1';
@@ -2608,12 +3146,12 @@ exportarJson(): void {
         strokeWidth: 1.5
       };
     }
-    if (t === 'ASOCIACION') {
+    if (t === 'ASOCIACION' || t === 'CLASE_ASOCIACION' || t === 'ASOCIACION_CLASE' || t === 'RECURSIVA') {
       return {
         type: 'path',
         d: 'M 10 -5 L 0 0 L 10 5 Z',
-        fill: '#cbd5e1',
-        stroke: '#cbd5e1'
+        fill: this.colorRelacion(tipo),
+        stroke: this.colorRelacion(tipo)
       };
     }
     return null;
@@ -2657,6 +3195,9 @@ exportarJson(): void {
     }
 
     const idElemento = String(cell.id);
+    if (idElemento.startsWith('assoc-class-')) {
+      return;
+    }
     const pos = cell.position();
 
     this.guardandoPosicion = true;
@@ -3460,14 +4001,46 @@ exportarJson(): void {
   // GESTIÓN Y EDICIÓN DE RELACIONES
   // =========================================================
 
+  sugerirNombreClaseAsociacion(): void {
+    if (this.nuevaRelacion.tipo === 'CLASE_ASOCIACION') {
+      const elemOrigen = this.elementos.find(e => e.id === this.nuevaRelacion.origen);
+      const elemDestino = this.elementos.find(e => e.id === this.nuevaRelacion.destino);
+      if (elemOrigen && elemDestino) {
+        if (!this.nuevaRelacion.rolDestino || this.nuevaRelacion.rolDestino.includes('_')) {
+          this.nuevaRelacion.rolDestino = `${elemOrigen.nombre}_${elemDestino.nombre}`;
+        }
+      }
+    }
+  }
+
+  seleccionarTipoRecursiva(): void {
+    this.nuevaRelacion.tipo = 'RECURSIVA';
+    if (this.nuevaRelacion.origen) {
+      this.nuevaRelacion.destino = this.nuevaRelacion.origen;
+    }
+    if (!this.nuevaRelacion.multiplicidadOrigen) {
+      this.nuevaRelacion.multiplicidadOrigen = '1';
+    }
+    if (!this.nuevaRelacion.multiplicidadDestino) {
+      this.nuevaRelacion.multiplicidadDestino = '0..*';
+    }
+  }
+
+  alCambiarOrigenRelacion(): void {
+    this.sugerirNombreClaseAsociacion();
+    if (this.nuevaRelacion.tipo === 'RECURSIVA') {
+      this.nuevaRelacion.destino = this.nuevaRelacion.origen;
+    }
+  }
+
   abrirModalRelacion(origenId?: string): void {
-    if (this.elementos.length < 2) {
-      alert('Debes tener al menos 2 elementos UML para crear una relación.');
+    if (this.elementos.length < 1) {
+      alert('Debes tener al menos 1 elemento UML para crear una relación.');
       return;
     }
 
     const defaultOrigen = origenId || this.elementoSeleccionado?.id || this.elementos[0]?.id || '';
-    const defaultDestino = this.elementos.find(e => e.id !== defaultOrigen)?.id || '';
+    const defaultDestino = this.elementos.find(e => e.id !== defaultOrigen)?.id || defaultOrigen;
 
     this.nuevaRelacion = {
       tipo: 'ASOCIACION',
@@ -3497,11 +4070,11 @@ exportarJson(): void {
     }
 
     if (this.nuevaRelacion.origen === this.nuevaRelacion.destino) {
-      alert('El origen y destino deben ser elementos diferentes.');
-      return;
+      this.nuevaRelacion.tipo = 'RECURSIVA';
     }
 
     const idModelo = this.modeloActual.idModelo;
+    const esClaseAsociacion = this.nuevaRelacion.tipo === 'CLASE_ASOCIACION';
 
     const dto = {
       tipo: this.nuevaRelacion.tipo,
@@ -3514,6 +4087,75 @@ exportarJson(): void {
     };
 
     this.guardandoRelacion = true;
+
+    // Si es CLASE_ASOCIACION, primero creamos la clase intermedia como una CLASE real en el modelo
+    if (esClaseAsociacion) {
+      const elemOrigen = this.elementos.find(e => e.id === this.nuevaRelacion.origen);
+      const elemDestino = this.elementos.find(e => e.id === this.nuevaRelacion.destino);
+      const posOX = elemOrigen?.posicion?.x ?? 100;
+      const posOY = elemOrigen?.posicion?.y ?? 100;
+      const posDX = elemDestino?.posicion?.x ?? 400;
+      const posDY = elemDestino?.posicion?.y ?? 100;
+      const midX = Math.round((posOX + posDX) / 2);
+      const midY = Math.round((posOY + posDY) / 2) - 150;
+
+      const nombreClaseAsociacion =
+        this.nuevaRelacion.rolDestino?.trim() ||
+        `${elemOrigen?.nombre || 'ClaseA'}_${elemDestino?.nombre || 'ClaseB'}`;
+
+      dto.rolDestino = nombreClaseAsociacion;
+
+      const dtoElemento = {
+        tipo: 'CLASE',
+        nombre: nombreClaseAsociacion,
+        visibilidad: 'PUBLIC',
+        estereotipo: 'association',
+        abstracto: false,
+        posicionX: midX,
+        posicionY: midY > 40 ? midY : (posOY + posDY) / 2 + 160
+      };
+
+      this.http
+        .post<ElementoUML>(`http://localhost:8080/api/modelos/${idModelo}/elementos`, dtoElemento)
+        .subscribe({
+          next: (nuevaClaseCreada) => {
+            nuevaClaseCreada.atributos = [];
+            nuevaClaseCreada.operaciones = [];
+            this.elementos = [...this.elementos, nuevaClaseCreada];
+
+            this.http
+              .post<RelacionUML>(`http://localhost:8080/api/modelos/${idModelo}/relaciones`, dto)
+              .pipe(
+                finalize(() => {
+                  this.guardandoRelacion = false;
+                  this.changeDetector.detectChanges();
+                })
+              )
+              .subscribe({
+                next: (relacion) => {
+                  this.relaciones = [...this.relaciones, relacion];
+                  this.mostrarModalRelacion = false;
+                  this.changeDetector.detectChanges();
+                  this.sincronizarConJointJS();
+                  // Seleccionar la clase creada para que el usuario pueda agregarle atributos y métodos de inmediato
+                  this.seleccionarElemento(nuevaClaseCreada.id);
+                },
+                error: (error) => {
+                  console.error('EDITOR UML: error creando relación de clase de asociación:', error);
+                  alert(error.error?.message ?? 'No se pudo crear la relación.');
+                }
+              });
+          },
+          error: (err) => {
+            this.guardandoRelacion = false;
+            this.changeDetector.detectChanges();
+            console.error('EDITOR UML: error creando clase intermedia de asociación:', err);
+            alert(err.error?.message ?? 'No se pudo crear la clase intermedia de la asociación.');
+          }
+        });
+
+      return;
+    }
 
     this.http
       .post<RelacionUML>(`http://localhost:8080/api/modelos/${idModelo}/relaciones`, dto)
@@ -3632,16 +4274,20 @@ exportarJson(): void {
       this.origenConexion = elemento;
       this.changeDetector.detectChanges();
     } else {
-      if (this.origenConexion.id === elemento.id) {
-        alert('Selecciona un elemento de destino diferente.');
-        return;
-      }
       const origenId = this.origenConexion.id;
       const destinoId = elemento.id;
+      const esMismo = origenId === destinoId;
       this.cancelarModoConexion();
 
-      this.nuevaRelacion.origen = origenId;
-      this.nuevaRelacion.destino = destinoId;
+      this.nuevaRelacion = {
+        tipo: esMismo ? 'RECURSIVA' : 'ASOCIACION',
+        origen: origenId,
+        destino: destinoId,
+        rolOrigen: '',
+        rolDestino: '',
+        multiplicidadOrigen: '1',
+        multiplicidadDestino: esMismo ? '0..*' : '1'
+      };
       this.mostrarModalRelacion = true;
       this.changeDetector.detectChanges();
     }

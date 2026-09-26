@@ -416,6 +416,16 @@
             <span class="legend-label">Asociación</span>
             <span class="legend-symbol">───></span>
           </div>
+          <div class="legend-item" title="Clase de Asociación: Conecta dos clases y tiene su clase intermedia asociada">
+            <span class="legend-dot" style="background:#06b6d4;"></span>
+            <span class="legend-label">Clase Asociación</span>
+            <span class="legend-symbol">─[▤]─></span>
+          </div>
+          <div class="legend-item" title="Relación Recursiva: Bucle rectangular que conecta una clase consigo misma">
+            <span class="legend-dot" style="background:#10b981;"></span>
+            <span class="legend-label">Relación Recursiva</span>
+            <span class="legend-symbol">↺──></span>
+          </div>
         </div>
       </div>
 
@@ -772,6 +782,8 @@
             <select id="editRelTipo" class="cf-select cf-select--compact" [(ngModel)]="relacionSeleccionada.tipo"
               (change)="guardarEdicionRelacion()">
               <option value="ASOCIACION">Asociación (────>)</option>
+              <option value="CLASE_ASOCIACION">Clase de Asociación (────[▤]────>)</option>
+              <option value="RECURSIVA">Relación Recursiva (↺────>)</option>
               <option value="GENERALIZACION">Generalización / Herencia (────▷)</option>
               <option value="REALIZACION">Realización / Interfaz (╌╌╌▷)</option>
               <option value="AGREGACION">Agregación (◇───)</option>
@@ -796,7 +808,7 @@
               <select id="editRelDestino" class="cf-select cf-select--compact"
                 [(ngModel)]="relacionSeleccionada.destino" (change)="guardarEdicionRelacion()">
                 @for (elem of elementos; track elem.id) {
-                <option [value]="elem.id" [disabled]="elem.id === relacionSeleccionada.origen">
+                <option [value]="elem.id" [disabled]="elem.id === relacionSeleccionada.origen && relacionSeleccionada.tipo !== 'RECURSIVA'">
                   {{ elem.nombre }}
                 </option>
                 }
@@ -839,10 +851,13 @@
             </div>
 
             <div class="cf-field">
-              <label for="editRelRolD">Rol Destino</label>
+              <label for="editRelRolD">
+                {{ relacionSeleccionada.tipo === 'CLASE_ASOCIACION' ? 'Nombre Clase Intermedia' : 'Rol Destino' }}
+              </label>
               <input id="editRelRolD" type="text" class="cf-input cf-input--compact"
                 [(ngModel)]="relacionSeleccionada.rolDestino" (change)="guardarEdicionRelacion()"
-                (blur)="guardarEdicionRelacion()" placeholder="Ej: libros" />
+                (blur)="guardarEdicionRelacion()"
+                [placeholder]="relacionSeleccionada.tipo === 'CLASE_ASOCIACION' ? 'Ej: Matricula, Inscripcion' : 'Ej: libros'" />
             </div>
           </div>
         </div>
@@ -1668,6 +1683,17 @@
           </button>
 
           <button type="button" class="relation-type-btn"
+            [class.relation-type-btn--active]="nuevaRelacion.tipo === 'CLASE_ASOCIACION'"
+            (click)="nuevaRelacion.tipo = 'CLASE_ASOCIACION'">
+            <div class="relation-type-header">
+              <span class="relation-type-dot" style="background:#06b6d4;"></span>
+              <strong>Clase Asociación</strong>
+            </div>
+            <span class="relation-arrow">────[▤]────></span>
+            <small>Asociación con clase intermedia</small>
+          </button>
+
+          <button type="button" class="relation-type-btn"
             [class.relation-type-btn--active]="nuevaRelacion.tipo === 'GENERALIZACION'"
             (click)="nuevaRelacion.tipo = 'GENERALIZACION'">
             <div class="relation-type-header">
@@ -1721,6 +1747,17 @@
             <span class="relation-arrow">╌╌╌></span>
             <small>Depende de / parámetro</small>
           </button>
+
+          <button type="button" class="relation-type-btn"
+            [class.relation-type-btn--active]="nuevaRelacion.tipo === 'RECURSIVA'"
+            (click)="seleccionarTipoRecursiva()">
+            <div class="relation-type-header">
+              <span class="relation-type-dot" style="background:#10b981;"></span>
+              <strong>Recursiva</strong>
+            </div>
+            <span class="relation-arrow">↺────></span>
+            <small>Auto-asociación reflexiva</small>
+          </button>
         </div>
       </div>
 
@@ -1728,7 +1765,8 @@
       <div class="cf-fields-row">
         <div class="cf-field cf-field--grow">
           <label for="relOrigen">Clase / Elemento ORIGEN <span class="required">*</span></label>
-          <select id="relOrigen" class="cf-select" [(ngModel)]="nuevaRelacion.origen" [disabled]="guardandoRelacion">
+          <select id="relOrigen" class="cf-select" [(ngModel)]="nuevaRelacion.origen"
+            (change)="alCambiarOrigenRelacion()" [disabled]="guardandoRelacion">
             <option value="" disabled>Selecciona el origen</option>
             @for (elem of elementos; track elem.id) {
             <option [value]="elem.id">{{ elem.nombre }} ({{ elem.tipo }})</option>
@@ -1738,16 +1776,32 @@
 
         <div class="cf-field cf-field--grow">
           <label for="relDestino">Clase / Elemento DESTINO <span class="required">*</span></label>
-          <select id="relDestino" class="cf-select" [(ngModel)]="nuevaRelacion.destino" [disabled]="guardandoRelacion">
+          <select id="relDestino" class="cf-select" [(ngModel)]="nuevaRelacion.destino"
+            (change)="sugerirNombreClaseAsociacion()" [disabled]="guardandoRelacion">
             <option value="" disabled>Selecciona el destino</option>
             @for (elem of elementos; track elem.id) {
-            <option [value]="elem.id" [disabled]="elem.id === nuevaRelacion.origen">
+            <option [value]="elem.id" [disabled]="elem.id === nuevaRelacion.origen && nuevaRelacion.tipo !== 'RECURSIVA'">
               {{ elem.nombre }} ({{ elem.tipo }})
             </option>
             }
           </select>
         </div>
       </div>
+
+      <!-- Nombre de la Clase de Asociación (Clase Intermedia) -->
+      @if (nuevaRelacion.tipo === 'CLASE_ASOCIACION') {
+      <div class="cf-field">
+        <label for="relNombreClaseAsoc">
+          Nombre de la Clase de Asociación (Clase Intermedia) <span class="required">*</span>
+        </label>
+        <input id="relNombreClaseAsoc" type="text" class="cf-input"
+          placeholder="Ej: Matricula, Inscripcion, DetallePedido"
+          [(ngModel)]="nuevaRelacion.rolDestino" [disabled]="guardandoRelacion" />
+        <small style="color:#06b6d4; font-size:11px; margin-top:4px; display:block;">
+          ◈ Se creará una clase con este nombre conectada a la asociación. Podrás seleccionarla, moverla y agregarle atributos y operaciones como a cualquier clase.
+        </small>
+      </div>
+      }
 
       <!-- Multiplicidades / Cardinalidades -->
       <div class="cf-fields-row">
@@ -1776,20 +1830,32 @@
         </div>
       </div>
 
-      <!-- Roles Opcionales -->
+      <!-- Roles Opcionales para relaciones estándar -->
+      @if (nuevaRelacion.tipo !== 'CLASE_ASOCIACION') {
       <div class="cf-fields-row">
         <div class="cf-field">
           <label for="relRolOrigen">Rol Origen <span class="optional">(Opcional)</span></label>
-          <input id="relRolOrigen" type="text" class="cf-input" placeholder="Ej: propietario, padre, autor"
+          <input id="relRolOrigen" type="text" class="cf-input"
+            [placeholder]="nuevaRelacion.tipo === 'RECURSIVA' ? 'Ej: padre, superior, es' : 'Ej: propietario, padre, autor'"
             [(ngModel)]="nuevaRelacion.rolOrigen" [disabled]="guardandoRelacion" />
         </div>
 
         <div class="cf-field">
           <label for="relRolDestino">Rol Destino <span class="optional">(Opcional)</span></label>
-          <input id="relRolDestino" type="text" class="cf-input" placeholder="Ej: elementos, items, dependencias"
+          <input id="relRolDestino" type="text" class="cf-input"
+            [placeholder]="nuevaRelacion.tipo === 'RECURSIVA' ? 'Ej: hijos, subcomentario, tiene' : 'Ej: elementos, items, dependencias'"
             [(ngModel)]="nuevaRelacion.rolDestino" [disabled]="guardandoRelacion" />
         </div>
       </div>
+      }
+
+      @if (nuevaRelacion.tipo === 'RECURSIVA') {
+      <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 8px 12px; margin-top: 10px;">
+        <small style="color: #34d399; font-size: 11.5px; display: block;">
+          ↺ Relación Recursiva: Se creará un lazo rectangular que conecta la clase consigo misma (ej. Comentarios con subcomentarios, Categorías con subcategorías).
+        </small>
+      </div>
+      }
 
     </div>
 
@@ -1799,7 +1865,7 @@
       </button>
 
       <button type="button" class="cf-btn cf-btn--primary" (click)="confirmarAgregarRelacion()"
-        [disabled]="guardandoRelacion || !nuevaRelacion.origen || !nuevaRelacion.destino || nuevaRelacion.origen === nuevaRelacion.destino">
+        [disabled]="guardandoRelacion || !nuevaRelacion.origen || !nuevaRelacion.destino || (nuevaRelacion.origen === nuevaRelacion.destino && nuevaRelacion.tipo !== 'RECURSIVA')">
         {{ guardandoRelacion ? 'Creando...' : 'Crear Relación' }}
       </button>
     </div>

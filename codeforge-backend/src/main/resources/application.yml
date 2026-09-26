@@ -19,5 +19,5 @@ spring:
 codeforge:
   ai:
     gemini:
-      api-key: ${GOOGLE_API_KEY}
+      api-key: ${GEMINI_API_KEY:${GOOGLE_API_KEY:}}
       model: ${GEMINI_MODEL:gemini-3.6-flash}
