@@ -17,7 +17,7 @@ public class CodeForgeAiService {
 
     public CodeForgeAiService(
             @Value("${codeforge.ai.gemini.api-key:}") String apiKey,
-            @Value("${codeforge.ai.gemini.model:gemini-3.6-flash}") String model
+            @Value("${codeforge.ai.gemini.model:gemini-3.5-flash}") String model
     ) {
         this.apiKey = apiKey;
         this.model = model;
@@ -149,22 +149,38 @@ public class CodeForgeAiService {
                             .temperature(0.2f)
                             .build();
 
-            GenerateContentResponse response =
-                    client.models.generateContent(
-                            model,
-                            pregunta,
-                            config
-                    );
+            String[] modelosCandidatos = {
+                    (model != null && !model.isBlank()) ? model : "gemini-3.5-flash",
+                    "gemini-3.5-flash-lite",
+                    "gemini-3.8-flash"
+            };
 
-            String texto = response.text();
+            Exception ultimoError = null;
+            for (String modeloIntento : modelosCandidatos) {
+                try {
+                    GenerateContentResponse response =
+                            client.models.generateContent(
+                                    modeloIntento,
+                                    pregunta,
+                                    config
+                            );
 
-            if (texto == null || texto.isBlank()) {
-                throw new IllegalStateException(
-                        "Gemini no devolvió una respuesta."
-                );
+                    String texto = response.text();
+
+                    if (texto != null && !texto.isBlank()) {
+                        return texto.trim();
+                    }
+                } catch (Exception e) {
+                    ultimoError = e;
+                    System.err.println("CODEFORGE IA (AYUDA): Falló modelo " + modeloIntento + " (" + e.getMessage() + "). Probando modelo de respaldo...");
+                }
             }
 
-            return texto.trim();
+            throw new IllegalStateException(
+                    "No se pudo consultar al asistente Gemini: "
+                            + (ultimoError != null ? ultimoError.getMessage() : "sin respuesta"),
+                    ultimoError
+            );
         }
     }
 }

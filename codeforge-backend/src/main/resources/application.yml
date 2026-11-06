@@ -18,6 +18,11 @@ spring:
 
 codeforge:
   ai:
+    proveedor: ${CODEFORGE_IA_PROVEEDOR:HIBRIDO} # HIBRIDO, LOCAL, GEMINI
     gemini:
       api-key: ${GEMINI_API_KEY:${GOOGLE_API_KEY:}}
-      model: ${GEMINI_MODEL:gemini-3.6-flash}
+      model: ${GEMINI_MODEL:gemini-3.5-flash}
+    local:
+      url: ${OLLAMA_URL:http://localhost:11434}
+      modelo: ${OLLAMA_MODEL:qwen2.5-coder:1.5b}
+      timeout-segundos: 90

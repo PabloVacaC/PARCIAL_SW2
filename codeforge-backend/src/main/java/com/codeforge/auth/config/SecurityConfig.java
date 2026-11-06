@@ -164,7 +164,8 @@ public class SecurityConfig {
                  * Login y registro son públicos.
                  */
                 .requestMatchers(
-                        "/api/auth/**"
+                        "/api/auth/**",
+                        "/error"
                 ).permitAll()
 
                 /*

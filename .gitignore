@@ -54,6 +54,18 @@ __screenshots__/
 !.env.example
 
 # =========================
+# Flutter / Mobile
+# =========================
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/.gradle/
+.agents/
+
+# =========================
 # Logs
 # =========================
 *.log

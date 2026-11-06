@@ -3,6 +3,7 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  NgZone,
   OnDestroy,
   OnInit,
   ViewChild,
@@ -13,6 +14,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, concatMap, finalize, from, map, of, toArray } from 'rxjs';
 import { dia, shapes } from '@joint/core';
+import { CommonModule } from '@angular/common';
 import { ProyectoService } from '../../core/services/proyecto';
 import { InvitacionService, UsuarioBusqueda } from '../../core/services/invitacion';
 import { Auth } from '../../auth/services/auth';
@@ -20,6 +22,9 @@ import { Proyecto } from '../dashboard/proyecto.model';
 import { Colaborador } from './colaborador.model';
 import { IntercambioService } from '../../intercambio/services/intercambio.service';
 import { ColaboracionService, CursorMessage } from '../../core/services/colaboracion.service';
+import { IaColaborativaService } from '../../core/services/ia-colaborativa.service';
+import { IaChatMensaje, IaPropuesta, ModoIa, IaPreguntaRequest, IaUmlFinding } from '../../core/models/ia-colaborativa.model';
+import { MarkdownPipe } from '../../core/pipes/markdown.pipe';
 
 export interface CursorRemoto {
   usuarioId: number;
@@ -282,7 +287,9 @@ interface ContextoAsistente {
 @Component({
   selector: 'app-editor',
   imports: [
-    FormsModule
+    FormsModule,
+    CommonModule,
+    MarkdownPipe
   ],
   templateUrl: './editor.html',
   styleUrl: './editor.css'
@@ -297,13 +304,19 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly intercambioService = inject(IntercambioService);
   private readonly colaboracionService = inject(ColaboracionService);
+  private readonly iaColaborativaService = inject(IaColaborativaService);
+  private readonly ngZone = inject(NgZone);
 
   // =========================================================
-  // AGENTE DE AYUDA DE CODEFORGE
+  // AGENTE DE AYUDA DE CODEFORGE Y DETECCIÓN DE INACTIVIDAD
   // =========================================================
 
   asistenteAbierto = false;
   asistenteProcesando = false;
+  asistenteParpadeando = false;
+  private readonly TIEMPO_INACTIVIDAD_MS = 60000; // 1 minuto (60 segundos)
+  private idleTimer: any = null;
+  private unbindIdleListeners?: () => void;
   preguntaAsistente = '';
   mensajesAsistente: MensajeAsistente[] = [
     {
@@ -325,6 +338,13 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
   ];
 
   abrirAsistente(): void {
+    // Al entrar al asistente, se apaga el parpadeo de llamado de atención
+    this.asistenteParpadeando = false;
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+
     this.asistenteAbierto = true;
     this.changeDetector.detectChanges();
 
@@ -340,7 +360,63 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.asistenteAbierto = false;
+    this.asistenteParpadeando = false;
     this.changeDetector.detectChanges();
+
+    // Al salir, no parpadeará hasta que se quede sin hacer nada durante 1 minuto completo
+    this.reiniciarTemporizadorInactividad();
+  }
+
+  // =========================================================
+  // DETECCIÓN DE INACTIVIDAD (ASISTENTE IA)
+  // =========================================================
+
+  private iniciarDetectorInactividad(): void {
+    this.reiniciarTemporizadorInactividad();
+
+    this.ngZone.runOutsideAngular(() => {
+      const resetOnActivity = () => {
+        // Si no está parpadeando y el modal no está abierto, reiniciamos el temporizador de 1 minuto
+        if (!this.asistenteParpadeando && !this.asistenteAbierto) {
+          this.reiniciarTemporizadorInactividad();
+        }
+      };
+
+      const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel'];
+      events.forEach(eventName => {
+        window.addEventListener(eventName, resetOnActivity, { passive: true });
+      });
+
+      this.unbindIdleListeners = () => {
+        events.forEach(eventName => {
+          window.removeEventListener(eventName, resetOnActivity);
+        });
+        if (this.idleTimer) {
+          clearTimeout(this.idleTimer);
+          this.idleTimer = null;
+        }
+      };
+    });
+  }
+
+  private reiniciarTemporizadorInactividad(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+
+    if (this.asistenteAbierto) {
+      return;
+    }
+
+    this.idleTimer = setTimeout(() => {
+      if (!this.asistenteAbierto) {
+        this.ngZone.run(() => {
+          this.asistenteParpadeando = true;
+          this.changeDetector.detectChanges();
+        });
+      }
+    }, this.TIEMPO_INACTIVIDAD_MS);
   }
 
   usarSugerenciaAsistente(pregunta: string): void {
@@ -529,6 +605,515 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
     }
 
     return 'Puedo ayudarte a usar CodeForge. Pregúntame, por ejemplo: “¿Cómo creo una clase?”, “¿Cómo agrego un atributo?”, “¿Cómo hago una relación?”, “¿Cómo importo XMI?” o “¿Cómo genero el backend?”';
+  }
+
+  // =========================================================
+  // IA DESARROLLADORA COLABORATIVA (EQUIPO EN VIVO)
+  // =========================================================
+
+  chatColaborativoAbierto = false;
+  iaColaborativaProcesando = false;
+  // Configuración de Modo de Aprobación de Propuestas IA (Manual vs Automático)
+  modoAprobacionIa: 'MANUAL' | 'AUTOMATICO' = 'MANUAL';
+  menuAprobacionAbierto = false;
+  autoAplicandoPropuesta = false;
+  propuestaRevertirSeleccionada: IaPropuesta | null = null;
+  revertiendoPropuestaId: number | null = null;
+  modoIaSeleccionado: ModoIa = 'GENERAL';
+  textoMensajeColaborativo = '';
+  generarPropuestaCheck = false;
+  mensajesColaborativos: IaChatMensaje[] = [];
+  propuestasColaborativas: IaPropuesta[] = [];
+  tabColaborativoActivo: 'CHAT' | 'PROPUESTAS' | 'HALLAZGOS' = 'CHAT';
+  hallazgosUml: IaUmlFinding[] = [];
+  cargandoHallazgos = false;
+  filtroEstadoPropuestas: string = 'TODAS';
+  propuestaSeleccionadaParaVer: IaPropuesta | null = null;
+  modalVerPropuestaAbierto = false;
+  aplicandoPropuestaId: number | null = null;
+  notificacionColaborativa: string | null = null;
+  tipoNotificacionColaborativa: 'success' | 'error' | 'info' = 'info';
+
+  modosDisponibles: Array<{ id: ModoIa; nombre: string; icono: string; descripcion: string }> = [
+    { id: 'GENERAL', nombre: 'General', icono: '✦', descripcion: 'Colaborador técnico del equipo' },
+    { id: 'MODELADOR_UML', nombre: 'Modelador UML', icono: '📐', descripcion: 'Diagnóstico y estructura UML' },
+    { id: 'REQUISITOS', nombre: 'Requisitos', icono: '📋', descripcion: 'Auditoría y reglas de negocio' },
+    { id: 'ARQUITECTO', nombre: 'Arquitecto', icono: '🏛️', descripcion: 'Capas y patrones Spring Boot' },
+    { id: 'DESARROLLADOR', nombre: 'Desarrollador', icono: '💻', descripcion: 'Entidades, DTOs y lógica' },
+    { id: 'REVISOR_PRUEBAS', nombre: 'Pruebas / Revisor', icono: '🧪', descripcion: 'Revisión y pruebas automatizadas' },
+    { id: 'ANALISTA_ERRORES', nombre: 'Analista Errores', icono: '🔍', descripcion: 'Detección de bugs e inconsistencias' },
+    { id: 'DOCUMENTADOR', nombre: 'Documentador', icono: '📖', descripcion: 'ADRs y notas de cambios' },
+    { id: 'IMPACTO', nombre: 'Impacto de Cambios', icono: '⚡', descripcion: 'Análisis de impacto y dependencias' },
+    { id: 'DECISIONES', nombre: 'Decisiones', icono: '💡', descripcion: 'Explicación técnica de alternativas' }
+  ];
+
+  abrirChatColaborativo(): void {
+    this.chatColaborativoAbierto = true;
+    if (this.idProyectoActual) {
+      this.cargarConversacionColaborativa(this.idProyectoActual);
+      this.cargarPropuestasColaborativas(this.idProyectoActual);
+      this.cargarDiagnosticoUml();
+    }
+    this.scrollChatAlFondo();
+    this.changeDetector.detectChanges();
+  }
+
+  cerrarChatColaborativo(): void {
+    this.chatColaborativoAbierto = false;
+    this.changeDetector.detectChanges();
+  }
+
+  cambiarModoIa(modo: ModoIa): void {
+    this.modoIaSeleccionado = modo;
+    this.changeDetector.detectChanges();
+  }
+
+  toggleMenuAprobacion(event?: MouseEvent): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.menuAprobacionAbierto = !this.menuAprobacionAbierto;
+    this.changeDetector.detectChanges();
+  }
+
+  cerrarMenuAprobacion(): void {
+    if (this.menuAprobacionAbierto) {
+      this.menuAprobacionAbierto = false;
+      this.changeDetector.detectChanges();
+    }
+  }
+
+  seleccionarModoAprobacion(modo: 'MANUAL' | 'AUTOMATICO'): void {
+    this.modoAprobacionIa = modo;
+    this.menuAprobacionAbierto = false;
+    try {
+      localStorage.setItem('codeforge_modo_aprobacion_ia', modo);
+    } catch {}
+
+    if (modo === 'AUTOMATICO') {
+      this.generarPropuestaCheck = true;
+      this.mostrarAlertaColaborativa('🛡️ Modo automático activado: las propuestas de la IA se aceptarán e implementarán en el diseño de forma inmediata.', 'success');
+    } else {
+      this.mostrarAlertaColaborativa('✋ Modo manual activado: deberás aprobar o rechazar manualmente cada propuesta antes de aplicarla.', 'info');
+    }
+    this.changeDetector.detectChanges();
+  }
+
+  aprobarYAplicarAutomaticamente(propuesta: IaPropuesta): void {
+    if (!this.idProyectoActual || !propuesta || this.aplicandoPropuestaId || this.autoAplicandoPropuesta) {
+      return;
+    }
+
+    this.autoAplicandoPropuesta = true;
+    this.aplicandoPropuestaId = propuesta.idPropuesta;
+    this.mostrarAlertaColaborativa(`⚡ [Modo Automático] Aprobando propuesta #${propuesta.idPropuesta}: "${propuesta.titulo}"...`, 'info');
+    this.changeDetector.detectChanges();
+
+    // 1. Aprobar en backend
+    this.iaColaborativaService.decidirPropuesta(this.idProyectoActual, propuesta.idPropuesta, { decision: 'APROBAR' }).subscribe({
+      next: (propAprobada) => {
+        propuesta.estado = propAprobada.estado;
+        if (propAprobada.versionResultante) propuesta.versionResultante = propAprobada.versionResultante;
+        if (propAprobada.nombreAprobador) propuesta.nombreAprobador = propAprobada.nombreAprobador;
+        this.sincronizarPropuestaEnEstado(propAprobada);
+
+        // 2. Aplicar inmediatamente al diseño UML
+        this.iaColaborativaService.aplicarPropuesta(this.idProyectoActual!, propuesta.idPropuesta).subscribe({
+          next: (propAplicada) => {
+            this.aplicandoPropuestaId = null;
+            this.autoAplicandoPropuesta = false;
+            propuesta.estado = propAplicada.estado;
+            if (propAplicada.versionResultante) propuesta.versionResultante = propAplicada.versionResultante;
+            this.sincronizarPropuestaEnEstado(propAplicada);
+
+            this.mostrarAlertaColaborativa(`✓ [Modo Automático] Propuesta #${propAplicada.idPropuesta} ("${propAplicada.titulo}") aprobada e implementada en el diseño (v${propAplicada.versionResultante || 'nueva'}).`, 'success');
+
+            // Refrescar diagrama UML en vivo, listas y diagnóstico
+            this.cargarModeloUML(this.idProyectoActual!);
+            this.cargarPropuestasColaborativas(this.idProyectoActual!);
+            this.cargarConversacionColaborativa(this.idProyectoActual!);
+            this.cargarDiagnosticoUml();
+            this.changeDetector.detectChanges();
+          },
+          error: (errAplicar) => {
+            this.aplicandoPropuestaId = null;
+            this.autoAplicandoPropuesta = false;
+            const msg = errAplicar.error?.message || errAplicar.message || 'Error al aplicar cambios';
+            this.mostrarAlertaColaborativa(`Error al aplicar automáticamente la propuesta: ${msg}`, 'error');
+            this.changeDetector.detectChanges();
+          }
+        });
+      },
+      error: (errAprobar) => {
+        this.aplicandoPropuestaId = null;
+        this.autoAplicandoPropuesta = false;
+        const msg = errAprobar.error?.message || errAprobar.message || 'Error al aprobar';
+        this.mostrarAlertaColaborativa(`Error al auto-aprobar propuesta: ${msg}`, 'error');
+        this.changeDetector.detectChanges();
+      }
+    });
+  }
+
+  enviarMensajeColaborativo(): void {
+    const texto = this.textoMensajeColaborativo.trim();
+    if (!texto || this.iaColaborativaProcesando || !this.idProyectoActual) return;
+
+    this.iaColaborativaProcesando = true;
+    this.textoMensajeColaborativo = '';
+
+    const req: IaPreguntaRequest = {
+      mensaje: texto,
+      modoIa: this.modoIaSeleccionado,
+      idModelo: this.modeloActual?.idModelo,
+      generarPropuesta: this.generarPropuestaCheck
+    };
+
+    this.iaColaborativaService.enviarMensaje(this.idProyectoActual, req).subscribe({
+      next: (nuevos) => {
+        for (const m of nuevos) {
+          if (!this.mensajesColaborativos.some(ex => ex.idMensaje === m.idMensaje)) {
+            this.mensajesColaborativos.push(m);
+          }
+        }
+        this.iaColaborativaProcesando = false;
+        this.cargarPropuestasColaborativas(this.idProyectoActual!);
+        this.scrollChatAlFondo();
+        this.changeDetector.detectChanges();
+
+        // Si está en modo AUTOMÁTICO, auto-aprobar y aplicar al diseño inmediatamente
+        if (this.modoAprobacionIa === 'AUTOMATICO') {
+          for (const m of nuevos) {
+            if (m.propuestaAsociada && m.propuestaAsociada.estado === 'PENDIENTE') {
+              this.aprobarYAplicarAutomaticamente(m.propuestaAsociada);
+              break;
+            }
+          }
+          // Respaldo por si la propuesta se asoció por id o fue devuelta en la lista
+          setTimeout(() => {
+            if (this.modoAprobacionIa === 'AUTOMATICO' && !this.autoAplicandoPropuesta && this.propuestasPendientes.length > 0) {
+              const primeraPendiente = this.propuestasPendientes[0];
+              if (primeraPendiente && primeraPendiente.estado === 'PENDIENTE') {
+                this.aprobarYAplicarAutomaticamente(primeraPendiente);
+              }
+            }
+          }, 350);
+        }
+      },
+      error: (err) => {
+        this.iaColaborativaProcesando = false;
+        this.mostrarAlertaColaborativa('Error al comunicarse con la IA: ' + (err.error?.message || err.message || 'Error de conexión'), 'error');
+        this.changeDetector.detectChanges();
+      }
+    });
+  }
+
+  ejecutarAccionRapidaIa(promptRapido: string, modo: ModoIa = 'MODELADOR_UML', forzarPropuesta = false): void {
+    this.modoIaSeleccionado = modo;
+    this.textoMensajeColaborativo = promptRapido;
+    this.generarPropuestaCheck = forzarPropuesta;
+    this.enviarMensajeColaborativo();
+  }
+
+  cargarConversacionColaborativa(idProyecto: number): void {
+    this.iaColaborativaService.obtenerConversacion(idProyecto).subscribe({
+      next: (resp) => {
+        this.mensajesColaborativos = resp.mensajes || [];
+        this.scrollChatAlFondo();
+        this.changeDetector.detectChanges();
+      },
+      error: (err) => console.warn('No se pudo cargar la conversación colaborativa:', err)
+    });
+  }
+
+  cargarPropuestasColaborativas(idProyecto: number): void {
+    this.iaColaborativaService.listarPropuestas(idProyecto).subscribe({
+      next: (props) => {
+        this.propuestasColaborativas = props || [];
+        this.changeDetector.detectChanges();
+      },
+      error: (err) => console.warn('No se pudieron cargar propuestas:', err)
+    });
+  }
+
+  iniciarWebSocketIaColaborativa(idProyecto: number): void {
+    this.iaColaborativaService.suscribirChat(idProyecto, (nuevoMensaje) => {
+      if (!this.mensajesColaborativos.some(m => m.idMensaje === nuevoMensaje.idMensaje)) {
+        this.mensajesColaborativos.push(nuevoMensaje);
+        this.scrollChatAlFondo();
+        this.changeDetector.detectChanges();
+      }
+    });
+
+    this.iaColaborativaService.suscribirPropuestas(idProyecto, (propuesta) => {
+      this.sincronizarPropuestaEnEstado(propuesta);
+    });
+
+    this.iaColaborativaService.suscribirModeloActualizado(idProyecto, (evt) => {
+      console.log('IA COLABORATIVA: Modelo actualizado externamente, recargando lienzo...', evt);
+      this.cargarModeloUML(idProyecto);
+      this.cargarDiagnosticoUml();
+      this.mostrarAlertaColaborativa('El modelo UML fue actualizado a la versión ' + (evt?.version || 'nueva'), 'info');
+    });
+  }
+
+  sincronizarPropuestaEnEstado(propuestaActualizada: IaPropuesta): void {
+    if (!propuestaActualizada) return;
+
+    // 1. Sincronizar en la lista de propuestas del tab de propuestas
+    const idx = this.propuestasColaborativas.findIndex(p => p.idPropuesta === propuestaActualizada.idPropuesta);
+    if (idx >= 0) {
+      this.propuestasColaborativas[idx] = { ...this.propuestasColaborativas[idx], ...propuestaActualizada };
+    } else {
+      this.propuestasColaborativas.unshift(propuestaActualizada);
+    }
+
+    // 2. Sincronizar en todos los mensajes del chat que referencien esta propuesta
+    if (this.mensajesColaborativos && this.mensajesColaborativos.length > 0) {
+      for (const m of this.mensajesColaborativos) {
+        if (m.propuestaAsociada && m.propuestaAsociada.idPropuesta === propuestaActualizada.idPropuesta) {
+          m.propuestaAsociada = { ...m.propuestaAsociada, ...propuestaActualizada };
+        }
+      }
+    }
+
+    // 3. Sincronizar en la propuesta del modal de detalles/diffs si está abierta
+    if (this.propuestaSeleccionadaParaVer && this.propuestaSeleccionadaParaVer.idPropuesta === propuestaActualizada.idPropuesta) {
+      this.propuestaSeleccionadaParaVer = { ...this.propuestaSeleccionadaParaVer, ...propuestaActualizada };
+    }
+
+    // 4. Forzar actualización inmediata en el template de Angular
+    this.changeDetector.markForCheck();
+    this.changeDetector.detectChanges();
+  }
+
+  cargarDiagnosticoUml(): void {
+    if (!this.idProyectoActual) return;
+    this.cargandoHallazgos = true;
+    this.iaColaborativaService.obtenerDiagnostico(this.idProyectoActual, this.modeloActual?.idModelo).subscribe({
+      next: (findings) => {
+        this.hallazgosUml = findings || [];
+        this.cargandoHallazgos = false;
+        this.changeDetector.detectChanges();
+      },
+      error: (err) => {
+        console.warn('Error al obtener diagnóstico UML:', err);
+        this.cargandoHallazgos = false;
+        this.changeDetector.detectChanges();
+      }
+    });
+  }
+
+  solicitarCorreccionHallazgo(h: IaUmlFinding): void {
+    this.tabColaborativoActivo = 'CHAT';
+    this.modoIaSeleccionado = 'MODELADOR_UML';
+    this.generarPropuestaCheck = true;
+    this.textoMensajeColaborativo = `Genera una propuesta formal para corregir el problema en '${h.elementoAfectado}' (${h.tipoProblema}): ${h.descripcion}. Corrección sugerida: ${h.propuestaSolucion || 'Ajustar estructura UML'}.`;
+    this.enviarMensajeColaborativo();
+  }
+
+  aprobarPropuesta(propuesta: IaPropuesta): void {
+    if (!this.idProyectoActual) return;
+    this.iaColaborativaService.decidirPropuesta(this.idProyectoActual, propuesta.idPropuesta, { decision: 'APROBAR' }).subscribe({
+      next: (p) => {
+        // Actualizar directamente la instancia recibida y sincronizar todo el estado de la vista de inmediato
+        propuesta.estado = p.estado;
+        if (p.versionResultante) propuesta.versionResultante = p.versionResultante;
+        if (p.nombreAprobador) propuesta.nombreAprobador = p.nombreAprobador;
+        this.sincronizarPropuestaEnEstado(p);
+
+        this.mostrarAlertaColaborativa(`Propuesta #${p.idPropuesta} aprobada con éxito. Ya puedes aplicarla al diagrama.`, 'success');
+        this.cargarPropuestasColaborativas(this.idProyectoActual!);
+        this.cargarConversacionColaborativa(this.idProyectoActual!);
+      },
+      error: (err) => this.mostrarAlertaColaborativa(err.error?.message || 'Error al aprobar propuesta', 'error')
+    });
+  }
+
+  rechazarPropuesta(propuesta: IaPropuesta): void {
+    if (!this.idProyectoActual) return;
+    const comentario = prompt('Motivo del rechazo (opcional):') || undefined;
+    this.iaColaborativaService.decidirPropuesta(this.idProyectoActual, propuesta.idPropuesta, { decision: 'RECHAZAR', comentario }).subscribe({
+      next: (p) => {
+        // Actualizar directamente la instancia recibida y sincronizar todo el estado de la vista de inmediato
+        propuesta.estado = p.estado;
+        if (p.versionResultante) propuesta.versionResultante = p.versionResultante;
+        this.sincronizarPropuestaEnEstado(p);
+
+        this.mostrarAlertaColaborativa(`Propuesta #${p.idPropuesta} rechazada.`, 'info');
+        this.cargarPropuestasColaborativas(this.idProyectoActual!);
+        this.cargarConversacionColaborativa(this.idProyectoActual!);
+      },
+      error: (err) => this.mostrarAlertaColaborativa(err.error?.message || 'Error al rechazar propuesta', 'error')
+    });
+  }
+
+  aplicarPropuestaDefinitiva(propuesta: IaPropuesta): void {
+    if (!this.idProyectoActual || this.aplicandoPropuestaId) return;
+
+    if (!confirm(`¿Confirmas aplicar la propuesta #${propuesta.idPropuesta}: "${propuesta.titulo}"?\nSe incrementará la versión del modelo y se actualizará el diagrama de todo el equipo.`)) {
+      return;
+    }
+
+    this.aplicandoPropuestaId = propuesta.idPropuesta;
+    this.changeDetector.detectChanges();
+
+    this.iaColaborativaService.aplicarPropuesta(this.idProyectoActual, propuesta.idPropuesta).subscribe({
+      next: (p) => {
+        this.aplicandoPropuestaId = null;
+        propuesta.estado = p.estado;
+        if (p.versionResultante) propuesta.versionResultante = p.versionResultante;
+        this.sincronizarPropuestaEnEstado(p);
+
+        this.mostrarAlertaColaborativa(`¡Propuesta #${p.idPropuesta} aplicada! Nueva versión del modelo: ${p.versionResultante}`, 'success');
+        this.cargarPropuestasColaborativas(this.idProyectoActual!);
+        this.cargarConversacionColaborativa(this.idProyectoActual!);
+        this.cargarModeloUML(this.idProyectoActual!);
+        this.cargarDiagnosticoUml();
+        this.modalVerPropuestaAbierto = false;
+        this.changeDetector.detectChanges();
+      },
+      error: (err) => {
+        this.aplicandoPropuestaId = null;
+        const msg = err.error?.message || err.message || 'Error al aplicar propuesta';
+        this.mostrarAlertaColaborativa(msg, 'error');
+        this.changeDetector.detectChanges();
+      }
+    });
+  }
+
+  iniciarReversionPropuesta(propuesta: IaPropuesta, event?: MouseEvent): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (this.propuestaRevertirSeleccionada?.idPropuesta === propuesta.idPropuesta) {
+      this.propuestaRevertirSeleccionada = null;
+    } else {
+      this.propuestaRevertirSeleccionada = propuesta;
+    }
+    this.changeDetector.detectChanges();
+  }
+
+  cancelarReversionPropuesta(event?: MouseEvent): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    this.propuestaRevertirSeleccionada = null;
+    this.changeDetector.detectChanges();
+  }
+
+  confirmarReversionPropuesta(propuesta: IaPropuesta, event?: MouseEvent): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (!this.idProyectoActual || this.revertiendoPropuestaId) return;
+
+    this.revertiendoPropuestaId = propuesta.idPropuesta;
+    this.changeDetector.detectChanges();
+
+    this.iaColaborativaService.revertirPropuesta(this.idProyectoActual, propuesta.idPropuesta).subscribe({
+      next: (propRevertida) => {
+        this.revertiendoPropuestaId = null;
+        this.propuestaRevertirSeleccionada = null;
+        propuesta.estado = propRevertida.estado;
+        if (propRevertida.versionResultante) propuesta.versionResultante = propRevertida.versionResultante;
+        this.sincronizarPropuestaEnEstado(propRevertida);
+
+        this.mostrarAlertaColaborativa(`⏪ Propuesta #${propRevertida.idPropuesta} revertida con éxito. El diagrama UML volvió a la versión v${propRevertida.versionOrigen || 'previa'}.`, 'success');
+
+        this.cargarModeloUML(this.idProyectoActual!);
+        this.cargarPropuestasColaborativas(this.idProyectoActual!);
+        this.cargarConversacionColaborativa(this.idProyectoActual!);
+        this.cargarDiagnosticoUml();
+        this.changeDetector.detectChanges();
+      },
+      error: (err) => {
+        this.revertiendoPropuestaId = null;
+        this.propuestaRevertirSeleccionada = null;
+        const msg = err.error?.message || err.message || 'Error al revertir propuesta';
+        this.mostrarAlertaColaborativa(`Error al volver atrás: ${msg}`, 'error');
+        this.changeDetector.detectChanges();
+      }
+    });
+  }
+
+  verDetallePropuesta(propuesta: IaPropuesta): void {
+    this.propuestaSeleccionadaParaVer = propuesta;
+    this.modalVerPropuestaAbierto = true;
+    this.changeDetector.detectChanges();
+  }
+
+  cerrarModalVerPropuesta(): void {
+    this.modalVerPropuestaAbierto = false;
+    this.propuestaSeleccionadaParaVer = null;
+    this.changeDetector.detectChanges();
+  }
+
+  obtenerOperacionesParseadas(operacionesJson: string): any[] {
+    try {
+      return JSON.parse(operacionesJson) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  formatearDetalleOperacion(op: any): string {
+    if (!op) return '';
+    const tipo = op.tipo || '';
+    if (tipo === 'CREAR_CLASE' || tipo === 'CREAR_ELEMENTO') {
+      const elem = op.elemento || {};
+      const atrs = (elem.atributos || []).map((a: any) => `${a.nombre}: ${a.tipo}`).join(', ');
+      return `Crear ${elem.tipo || 'CLASE'} '${elem.nombre}' ${atrs ? '(' + atrs + ')' : ''}`;
+    }
+    if (tipo === 'AGREGAR_ATRIBUTO') {
+      return `Agregar atributo '${op.atributo?.nombre}: ${op.atributo?.tipo}' en clase '${op.clase}'`;
+    }
+    if (tipo === 'AGREGAR_OPERACION') {
+      return `Agregar operación '${op.operacion?.nombre}(): ${op.operacion?.tipoRetorno}' en clase '${op.clase}'`;
+    }
+    if (tipo === 'CREAR_RELACION') {
+      const r = op.relacion || {};
+      return `Crear relación ${r.tipo || 'ASOCIACION'} entre '${r.origen}' (${r.multiplicidadOrigen || '1'}) y '${r.destino}' (${r.multiplicidadDestino || '1'})`;
+    }
+    if (tipo === 'MODIFICAR_MULTIPLICIDAD') {
+      return `Ajustar multiplicidad entre '${op.origen}' y '${op.destino}' a ${op.multiplicidadDestino || '1'}`;
+    }
+    if (tipo === 'ELIMINAR_CLASE') {
+      return `Eliminar clase '${op.nombre}'`;
+    }
+    if (tipo === 'ELIMINAR_RELACION') {
+      return `Eliminar relación entre '${op.origen}' y '${op.destino}'`;
+    }
+    return JSON.stringify(op);
+  }
+
+  get propuestasFiltradas(): IaPropuesta[] {
+    if (this.filtroEstadoPropuestas === 'TODAS') return this.propuestasColaborativas;
+    return this.propuestasColaborativas.filter(p => p.estado === this.filtroEstadoPropuestas);
+  }
+
+  get propuestasPendientes(): IaPropuesta[] {
+    return this.propuestasColaborativas.filter(p => p.estado === 'PENDIENTE');
+  }
+
+  private scrollChatAlFondo(): void {
+    setTimeout(() => {
+      const container = document.getElementById('contenedorChatColaborativo');
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }, 60);
+  }
+
+  private mostrarAlertaColaborativa(mensaje: string, tipo: 'success' | 'error' | 'info' = 'info'): void {
+    this.notificacionColaborativa = mensaje;
+    this.tipoNotificacionColaborativa = tipo;
+    setTimeout(() => {
+      if (this.notificacionColaborativa === mensaje) {
+        this.notificacionColaborativa = null;
+        this.changeDetector.detectChanges();
+      }
+    }, 6000);
+    this.changeDetector.detectChanges();
   }
 
   // =========================================================
@@ -1144,8 +1729,19 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
         return true;
       })
       .map((relacion, index) => {
-        const origen = String(relacion.origen).trim();
-        const destino = String(relacion.destino).trim();
+        let origen = String(relacion.origen).trim();
+        let destino = String(relacion.destino).trim();
+
+        const elemO = elementos.find(
+          e => e.id === origen || e.nombre?.trim().toLowerCase() === origen.toLowerCase()
+        );
+        if (elemO) origen = elemO.id;
+
+        const elemD = elementos.find(
+          e => e.id === destino || e.nombre?.trim().toLowerCase() === destino.toLowerCase()
+        );
+        if (elemD) destino = elemD.id;
+
         const esMismo = origen === destino;
         let tipo = this.normalizarTipoRelacionIA(relacion.tipo);
         if (esMismo) {
@@ -2224,6 +2820,26 @@ exportarJson(): void {
 
     // Iniciar WebSocket STOMP para Cursores Colaborativos en Tiempo Real
     this.iniciarWebSocketColaboracion(idProyecto);
+
+    // Iniciar datos y WebSocket de IA Colaborativa de Equipo
+    this.cargarConversacionColaborativa(idProyecto);
+    this.cargarPropuestasColaborativas(idProyecto);
+    this.cargarDiagnosticoUml();
+    this.iniciarWebSocketIaColaborativa(idProyecto);
+
+    // Cargar modo de aprobación de IA preferido
+    try {
+      const modoGuardado = localStorage.getItem('codeforge_modo_aprobacion_ia');
+      if (modoGuardado === 'AUTOMATICO' || modoGuardado === 'MANUAL') {
+        this.modoAprobacionIa = modoGuardado;
+        if (this.modoAprobacionIa === 'AUTOMATICO') {
+          this.generarPropuestaCheck = true;
+        }
+      }
+    } catch {}
+
+    // Iniciar detector de inactividad de 1 minuto para el Asistente IA
+    this.iniciarDetectorInactividad();
   }
 
   ngAfterViewInit(): void {
@@ -2275,15 +2891,34 @@ exportarJson(): void {
     };
     window.addEventListener('beforeunload', this.beforeUnloadListener);
 
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (this.menuAprobacionAbierto && !target.closest('.colab-approval-dropdown-container')) {
+        this.menuAprobacionAbierto = false;
+        this.changeDetector.detectChanges();
+      }
+      if (this.propuestaRevertirSeleccionada && !target.closest('.rollback-container')) {
+        this.propuestaRevertirSeleccionada = null;
+        this.changeDetector.detectChanges();
+      }
+    };
+    window.addEventListener('click', onDocClick);
+
     this.unbindGlobalListeners = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('click', onDocClick);
     };
   }
 
   ngOnDestroy(): void {
     if (this.pollingTimer) {
       clearInterval(this.pollingTimer);
+    }
+    this.unbindIdleListeners?.();
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
     }
     this.detenerContadorAudio();
     this.mediaRecorder?.stop();
@@ -2876,8 +3511,31 @@ exportarJson(): void {
     const extraCells: dia.Element[] = [];
 
     for (const relacion of this.relaciones) {
-      const origen = this.graph.getCell(relacion.origen);
-      const destino = this.graph.getCell(relacion.destino);
+      let origen = this.graph.getCell(relacion.origen);
+      let destino = this.graph.getCell(relacion.destino);
+
+      // Resiliencia: si origen o destino fueron referenciados por nombre en vez de UUID, resolver al ID de la celda
+      if (!origen && relacion.origen) {
+        const origenNombre = String(relacion.origen).trim().toLowerCase();
+        const elemO = this.elementos.find(
+          e => e.id === relacion.origen || e.nombre?.trim().toLowerCase() === origenNombre
+        );
+        if (elemO) {
+          origen = this.graph.getCell(elemO.id);
+          relacion.origen = elemO.id;
+        }
+      }
+
+      if (!destino && relacion.destino) {
+        const destinoNombre = String(relacion.destino).trim().toLowerCase();
+        const elemD = this.elementos.find(
+          e => e.id === relacion.destino || e.nombre?.trim().toLowerCase() === destinoNombre
+        );
+        if (elemD) {
+          destino = this.graph.getCell(elemD.id);
+          relacion.destino = elemD.id;
+        }
+      }
 
       if (!origen || !destino) {
         continue;

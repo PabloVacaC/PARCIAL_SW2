@@ -466,25 +466,44 @@ public class ProyectoService {
 
 
         return new ProyectoResponseDTO(
-
                 proyecto.getIdProyecto(),
-
                 proyecto.getNombre(),
-
                 proyecto.getDescripcion(),
-
                 proyecto.getEstado(),
-
                 propietario.getIdUsuario(),
-
                 propietario.getUsername(),
-
                 nombrePropietario,
-
                 proyecto.getFechaCreacion(),
-
                 proyecto.getFechaActualizacion()
         );
     }
 
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> obtenerDocumentacion(Long idProyecto) {
+        Proyecto proyecto = proyectoRepository.findById(idProyecto)
+                .orElseThrow(() -> new RuntimeException("Proyecto no encontrado"));
+
+        java.util.Map<String, Object> doc = new java.util.LinkedHashMap<>();
+        doc.put("idProyecto", proyecto.getIdProyecto());
+        doc.put("nombre", proyecto.getNombre());
+        doc.put("descripcion", proyecto.getDescripcion() != null ? proyecto.getDescripcion() : "Sin descripción");
+        doc.put("estado", proyecto.getEstado());
+        doc.put("fechaCreacion", proyecto.getFechaCreacion());
+        doc.put("fechaActualizacion", proyecto.getFechaActualizacion());
+        doc.put("arquitectura", "Arquitectura limpia y modular por capas: Controladores REST -> Servicios de Negocio -> Repositorios Spring Data JPA -> Entidades relacionales PostgreSQL. Generación automática de Backend y Cliente Móvil Flutter.");
+        doc.put("requisitosFuncionales", java.util.List.of(
+                "Gestión integral de proyectos de software y modelos de dominio UML",
+                "Inspección y visualización interactiva de clases, atributos, métodos y relaciones",
+                "Generación automática de artefactos de backend Spring Boot y Flutter",
+                "Asistencia técnica y auditoría colaborativa con Inteligencia Artificial (Nube y Local Offline)",
+                "Gestión de propuestas de cambio al diagrama con trazabilidad y versionado"
+        ));
+        doc.put("requisitosNoFuncionales", java.util.List.of(
+                "Seguridad: Autenticación basada en JSON Web Tokens (JWT) y almacenamiento seguro en dispositivo móvil",
+                "Disponibilidad: Modo de solo lectura resiliente ante desconexiones",
+                "Rendimiento: Tiempos de respuesta inferiores a 2 segundos en consultas locales",
+                "Usabilidad: Diseño móvil nativo ergonómico siguiendo estándares de interfaz Impeccable"
+        ));
+        return doc;
+    }
 }

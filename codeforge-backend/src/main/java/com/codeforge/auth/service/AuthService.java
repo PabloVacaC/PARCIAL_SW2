@@ -97,6 +97,7 @@ public class AuthService {
 
         Usuario usuario = usuarioRepository
                 .findByUsername(username)
+                .or(() -> usuarioRepository.findByCorreo(username))
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Usuario o contraseña incorrectos"));

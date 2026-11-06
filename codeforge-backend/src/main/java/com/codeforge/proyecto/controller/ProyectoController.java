@@ -91,4 +91,16 @@ public class ProyectoController {
         );
     }
 
+    // =========================================================
+    // OBTENER DOCUMENTACION Y REQUISITOS (SOLO LECTURA)
+    // =========================================================
+
+    @GetMapping("/{idProyecto}/documentacion")
+    public ResponseEntity<java.util.Map<String, Object>> obtenerDocumentacion(
+            @PathVariable Long idProyecto
+    ) {
+        return ResponseEntity.ok(
+                proyectoService.obtenerDocumentacion(idProyecto)
+        );
+    }
 }

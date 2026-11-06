@@ -22,7 +22,7 @@ public class UmlImageAiService {
 
     public UmlImageAiService(
             @Value("${codeforge.ai.gemini.api-key:}") String apiKey,
-            @Value("${codeforge.ai.gemini.model:gemini-3.6-flash}") String model
+            @Value("${codeforge.ai.gemini.model:gemini-3.5-flash}") String model
     ) {
         if (apiKey == null || apiKey.isBlank()) {
             apiKey = System.getenv("GEMINI_API_KEY");
@@ -148,23 +148,39 @@ public class UmlImageAiService {
                             .responseMimeType("application/json")
                             .build();
 
-            GenerateContentResponse response =
-                    client.models.generateContent(
-                            model,
-                            content,
-                            config
-                    );
+            String[] modelosCandidatos = {
+                    (model != null && !model.isBlank()) ? model : "gemini-3.5-flash",
+                    "gemini-3.5-flash-lite",
+                    "gemini-3.8-flash"
+            };
 
-            String texto = response.text();
+            Exception ultimoError = null;
+            for (String modeloIntento : modelosCandidatos) {
+                try {
+                    GenerateContentResponse response =
+                            client.models.generateContent(
+                                    modeloIntento,
+                                    content,
+                                    config
+                            );
 
-            if (texto == null || texto.isBlank()) {
-                throw new IllegalStateException(
-                        "Gemini no devolvió una respuesta."
-                );
+                    String texto = response.text();
+
+                    if (texto != null && !texto.isBlank()) {
+                        return objectMapper.readTree(
+                                limpiarRespuesta(texto)
+                        );
+                    }
+                } catch (Exception e) {
+                    ultimoError = e;
+                    System.err.println("CODEFORGE IA (IMAGEN/AUDIO): Falló intento con " + modeloIntento + " (" + e.getMessage() + "). Probando modelo de respaldo...");
+                }
             }
 
-            return objectMapper.readTree(
-                    limpiarRespuesta(texto)
+            throw new IllegalStateException(
+                    "No se pudo procesar la solicitud con Gemini: "
+                            + (ultimoError != null ? ultimoError.getMessage() : "sin respuesta"),
+                    ultimoError
             );
         }
     }

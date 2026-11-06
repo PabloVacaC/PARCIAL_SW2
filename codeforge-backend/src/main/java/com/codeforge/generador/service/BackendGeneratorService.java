@@ -546,4 +546,38 @@ public class BackendGeneratorService {
 
         return (List<Map<String, Object>>) elementos;
     }
+
+    public List<Map<String, String>> listarArchivosGenerados(Long idModelo) {
+        Path carpeta = generarBackend(idModelo);
+        List<Map<String, String>> archivos = new java.util.ArrayList<>();
+        try (var stream = Files.walk(carpeta)) {
+            stream.filter(Files::isRegularFile).forEach(path -> {
+                String relativePath = carpeta.relativize(path).toString().replace("\\", "/");
+                if (!relativePath.endsWith(".zip") && !relativePath.contains(".mvn") && !relativePath.contains("mvnw")) {
+                    try {
+                        String contenido = Files.readString(path);
+                        String nombre = path.getFileName().toString();
+                        String tipo = "TEXT";
+                        if (nombre.endsWith(".java")) tipo = "JAVA";
+                        else if (nombre.endsWith(".dart")) tipo = "DART";
+                        else if (nombre.endsWith(".xml")) tipo = "XML";
+                        else if (nombre.endsWith(".sql")) tipo = "SQL";
+                        else if (nombre.endsWith(".yml") || nombre.endsWith(".yaml")) tipo = "YAML";
+                        else if (nombre.endsWith(".json")) tipo = "JSON";
+                        else if (nombre.endsWith(".md")) tipo = "MARKDOWN";
+
+                        java.util.Map<String, String> item = new java.util.LinkedHashMap<>();
+                        item.put("ruta", relativePath);
+                        item.put("nombre", nombre);
+                        item.put("tipo", tipo);
+                        item.put("contenido", contenido);
+                        archivos.add(item);
+                    } catch (Exception ignored) {}
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("Error al listar archivos generados: " + e.getMessage());
+        }
+        return archivos;
+    }
 }

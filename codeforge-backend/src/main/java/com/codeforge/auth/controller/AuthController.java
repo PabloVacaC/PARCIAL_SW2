@@ -57,4 +57,13 @@ public class AuthController {
 
         return ResponseEntity.ok(respuesta);
     }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<java.util.Map<String, Object>> manejarError(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(java.util.Map.of(
+            "status", 400,
+            "error", "Bad Request",
+            "mensaje", ex.getMessage() != null ? ex.getMessage() : "Error en autenticación"
+        ));
+    }
 }

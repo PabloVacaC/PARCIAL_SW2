@@ -38,6 +38,13 @@
     }
 
     <div class="editor-actions">
+      @if (asistenteParpadeando) {
+      <button type="button" class="btn-idle-topbar-callout" (click)="abrirAsistente()" title="Haz clic para abrir el Asistente IA">
+        <span class="idle-topbar-icon">💡</span>
+        <span>¿Dudas? Abrir Asistente IA</span>
+      </button>
+      }
+
       @if (sincronizadoEnVivo) {
       <span class="sync-badge" title="Cambios sincronizados en tiempo real">
         ⚡ Sincronizado
@@ -895,11 +902,39 @@
       </div>
       }
 
+      <!-- ===================================================== -->
+      <!-- TARJETA IA DESARROLLADORA COLABORATIVA (EQUIPO)        -->
+      <!-- ===================================================== -->
+      <div class="ai-colab-card">
+        <div class="ai-colab-header">
+          <div class="ai-colab-icon">✦</div>
+          <div class="ai-colab-titles">
+            <strong>IA Desarrolladora Colaborativa</strong>
+            <span class="ai-colab-tag">EQUIPO · EN VIVO</span>
+          </div>
+        </div>
+
+        <p>
+          Compañera técnica compartida: modela UML, audita requisitos, analiza arquitectura y propone cambios que solo se aplican con aprobación del equipo.
+        </p>
+
+        <button type="button" class="btn-action btn-action--primary btn-ai-colab" style="width:100%; margin-top:8px;"
+          (click)="abrirChatColaborativo()">
+          ✦ Abrir chat colaborativo
+          @if (propuestasPendientes.length > 0) {
+          <span class="colab-badge-count">{{ propuestasPendientes.length }}</span>
+          }
+        </button>
+      </div>
+
       <!-- TARJETA ASISTENTE IA -->
-      <div class="ai-mini-card">
+      <div class="ai-mini-card" [class.ai-mini-card--idle-pulse]="asistenteParpadeando">
         <div class="ai-mini-header">
-          <div class="ai-mini-icon">✦</div>
+          <div class="ai-mini-icon" [class.ai-mini-icon--pulse]="asistenteParpadeando">✦</div>
           <strong>Asistente IA de CodeForge</strong>
+          @if (asistenteParpadeando) {
+          <span class="idle-help-pill">¿Tienes dudas?</span>
+          }
         </div>
 
         <p>
@@ -907,9 +942,15 @@
           o cómo trabajar con tu modelo UML actual.
         </p>
 
-        <button type="button" class="btn-action btn-action--relation" style="width:100%; margin-top:10px;"
+        <button type="button" class="btn-action btn-action--relation"
+          [class.btn-action--idle-glow]="asistenteParpadeando"
+          style="width:100%; margin-top:10px;"
           (click)="abrirAsistente()">
+          @if (asistenteParpadeando) {
+          💡 ¡Haz clic aquí para ver ayuda!
+          } @else {
           ✦ Abrir asistente de ayuda
+          }
         </button>
 
         @if (iaProcesando) {
@@ -1015,6 +1056,569 @@
 }
 
 <!-- ========================================================= -->
+<!-- MODAL: IA DESARROLLADORA COLABORATIVA (EQUIPO EN VIVO)   -->
+<!-- ========================================================= -->
+@if (chatColaborativoAbierto) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarChatColaborativo()" style="z-index:1220;">
+  <div class="cf-modal-box cf-modal-box--colab-ia" (click)="$event.stopPropagation()">
+    
+    <!-- HEADER MINIMALISTA ESTILO EMIL KOWALSKI -->
+    <div class="colab-modal-header">
+      <div class="colab-modal-header__info">
+        <div class="colab-header-title-group">
+          <h2>Sala de Desarrollo Asistida por IA</h2>
+          <span class="colab-status-live" title="Sincronizado en tiempo real vía WebSocket">
+            <span class="pulse-dot"></span> En vivo
+          </span>
+        </div>
+        <p class="colab-header-meta">
+          {{ proyecto?.nombre || 'CodeForge' }} <span class="meta-dot">·</span> v{{ modeloActual?.version || '1.0' }}
+        </p>
+      </div>
+
+      <!-- SEGMENTED TABS INTEGRADOS EN EL HEADER -->
+      <div class="colab-segmented-control" role="tablist">
+        <button type="button" 
+                class="colab-segmented-btn" 
+                [class.colab-segmented-btn--active]="tabColaborativoActivo === 'CHAT'"
+                (click)="tabColaborativoActivo = 'CHAT'"
+                role="tab"
+                [attr.aria-selected]="tabColaborativoActivo === 'CHAT'">
+          Chat
+          @if (mensajesColaborativos.length > 0) {
+          <span class="tab-count-pill">{{ mensajesColaborativos.length }}</span>
+          }
+        </button>
+        <button type="button" 
+                class="colab-segmented-btn" 
+                [class.colab-segmented-btn--active]="tabColaborativoActivo === 'PROPUESTAS'"
+                (click)="tabColaborativoActivo = 'PROPUESTAS'"
+                role="tab"
+                [attr.aria-selected]="tabColaborativoActivo === 'PROPUESTAS'">
+          Propuestas
+          @if (propuestasPendientes.length > 0) {
+          <span class="tab-count-pill tab-count-pill--pending">{{ propuestasPendientes.length }}</span>
+          }
+        </button>
+      </div>
+
+      <div class="colab-modal-header__actions">
+        <button type="button" class="colab-close-btn" (click)="cerrarChatColaborativo()" title="Cerrar ventana (Esc)" aria-label="Cerrar ventana">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- BANNER DE NOTIFICACIONES -->
+    @if (notificacionColaborativa) {
+    <div class="colab-alert-banner" [class.colab-alert-banner--error]="tipoNotificacionColaborativa === 'error'" [class.colab-alert-banner--success]="tipoNotificacionColaborativa === 'success'">
+      <span>{{ notificacionColaborativa }}</span>
+      <button type="button" class="alert-close-btn" (click)="notificacionColaborativa = null">×</button>
+    </div>
+    }
+
+    <!-- ========================================== -->
+    <!-- TAB: CHAT DE EQUIPO                      -->
+    <!-- ========================================== -->
+    @if (tabColaborativoActivo === 'CHAT') {
+    <div id="contenedorChatColaborativo" class="colab-chat-stream">
+      @if (mensajesColaborativos.length === 0) {
+      <div class="colab-empty-chat">
+        <div class="empty-spark">✦</div>
+        <h3>Conversación técnica compartida</h3>
+        <p>Escribe tu primera consulta o usa las acciones rápidas arriba para que la IA colabore con tu equipo.</p>
+      </div>
+      }
+
+      @for (m of mensajesColaborativos; track m.idMensaje || m.fechaEnvio) {
+      
+      <!-- MENSAJE DE SISTEMA -->
+      @if (m.tipoEmisor === 'SISTEMA') {
+      <div class="colab-msg-row colab-msg-row--system">
+        <div class="system-badge-pill">
+          <span class="system-icon">ℹ️</span>
+          <div class="system-text">{{ m.contenido }}</div>
+          <span class="msg-time">{{ m.fechaEnvio | date:'HH:mm' }}</span>
+        </div>
+      </div>
+      }
+
+      <!-- MENSAJE DE USUARIO HUMANO -->
+      @else if (m.tipoEmisor === 'USUARIO') {
+      <div class="colab-msg-row colab-msg-row--user">
+        <div class="user-bubble">
+          <div class="bubble-header">
+            <span class="sender-name">{{ m.nombreEmisor }}</span>
+            <span class="msg-time">{{ m.fechaEnvio | date:'HH:mm' }}</span>
+          </div>
+          <div class="bubble-body" [innerHTML]="m.contenido | markdown"></div>
+        </div>
+      </div>
+      }
+
+      <!-- MENSAJE DE LA IA -->
+      @else {
+      <div class="colab-msg-row colab-msg-row--ai">
+        <div class="ai-bubble">
+          <div class="bubble-header">
+            <div class="ai-sender-tag">
+              <span class="spark-icon">✦</span>
+              <strong>{{ m.nombreEmisor }}</strong>
+              @if (m.modoIa) {
+              <span class="mode-tag">{{ m.modoIa }}</span>
+              }
+            </div>
+            <span class="msg-time">{{ m.fechaEnvio | date:'HH:mm' }}</span>
+          </div>
+
+          <div class="bubble-body ai-body-text" [innerHTML]="m.contenido | markdown"></div>
+
+          <!-- TARJETA INTERACTIVA DE PROPUESTA EMBEBIDA EN EL CHAT -->
+          @if (m.propuestaAsociada) {
+          <div class="embedded-proposal-card" [class.embedded-proposal-card--applied]="m.propuestaAsociada.estado === 'APLICADA'" [class.embedded-proposal-card--rejected]="m.propuestaAsociada.estado === 'RECHAZADA'">
+            <div class="proposal-card-header">
+              <div>
+                <span class="proposal-pill">PROPUESTA #{{ m.propuestaAsociada.idPropuesta }}</span>
+                <h4>{{ m.propuestaAsociada.titulo }}</h4>
+              </div>
+              <span class="proposal-status-badge" [class]="'status-' + m.propuestaAsociada.estado.toLowerCase()">
+                {{ m.propuestaAsociada.estado }}
+              </span>
+            </div>
+
+            @if (m.propuestaAsociada.descripcionProblema) {
+            <p class="prop-desc"><strong>Problema:</strong> {{ m.propuestaAsociada.descripcionProblema }}</p>
+            }
+
+            @if (m.propuestaAsociada.solucionPropuesta) {
+            <p class="prop-desc"><strong>Solución:</strong> {{ m.propuestaAsociada.solucionPropuesta }}</p>
+            }
+
+            <div class="proposal-version-flow">
+              <span>Versión origen: <code>v{{ m.propuestaAsociada.versionOrigen }}</code></span>
+              <span class="flow-arrow">➔</span>
+              <span>Versión resultante: <code>v{{ m.propuestaAsociada.versionResultante || 'siguiente' }}</code></span>
+              <span class="ops-count">({{ m.propuestaAsociada.totalOperaciones || 0 }} operaciones)</span>
+            </div>
+
+            <!-- BOTONES DE ACCIÓN SOBRE LA PROPUESTA -->
+            <div class="proposal-card-actions">
+              <button type="button" class="btn-prop-view" (click)="verDetallePropuesta(m.propuestaAsociada)">
+                👁️ Ver Detalles y Diferencias
+              </button>
+
+              @if (m.propuestaAsociada.estado === 'PENDIENTE') {
+              <button type="button" class="btn-prop-approve" (click)="aprobarPropuesta(m.propuestaAsociada)">
+                ✓ Aprobar
+              </button>
+              <button type="button" class="btn-prop-reject" (click)="rechazarPropuesta(m.propuestaAsociada)">
+                ✗ Rechazar
+              </button>
+              }
+
+              @if (m.propuestaAsociada.estado === 'APROBADA') {
+              <button type="button" class="btn-prop-apply" 
+                      (click)="aplicarPropuestaDefinitiva(m.propuestaAsociada)"
+                      [disabled]="aplicandoPropuestaId === m.propuestaAsociada.idPropuesta">
+                {{ aplicandoPropuestaId === m.propuestaAsociada.idPropuesta ? '⏳ Aplicando...' : '🚀 Aplicar Cambios al Diagrama' }}
+              </button>
+              }
+
+              @if (m.propuestaAsociada.estado === 'APLICADA') {
+              <div class="applied-footer-row">
+                <span class="applied-badge-text">✓ Modificación aplicada oficialmente en el diagrama</span>
+                <div class="rollback-container">
+                  <button type="button" 
+                          class="btn-rollback-trigger" 
+                          (click)="iniciarReversionPropuesta(m.propuestaAsociada, $event)"
+                          title="Volver atrás / Revertir cambios de esta propuesta">
+                    <span class="rollback-arrow-icon">↩</span>
+                    <span class="rollback-tooltip-label">Volver atrás</span>
+                  </button>
+
+                  @if (propuestaRevertirSeleccionada?.idPropuesta === m.propuestaAsociada.idPropuesta) {
+                  <div class="rollback-confirm-popover" (click)="$event.stopPropagation()">
+                    <div class="rollback-popover-header">
+                      <span class="rollback-popover-icon">⏪</span>
+                      <span class="rollback-popover-title">¿Volver atrás?</span>
+                    </div>
+                    <p class="rollback-popover-text">
+                      Se revertirán los cambios aplicados y el modelo volverá al estado previo (v{{ m.propuestaAsociada.versionOrigen }}).
+                    </p>
+                    <div class="rollback-popover-actions">
+                      <button type="button" 
+                              class="btn-rollback-accept" 
+                              (click)="confirmarReversionPropuesta(m.propuestaAsociada, $event)"
+                              [disabled]="revertiendoPropuestaId === m.propuestaAsociada.idPropuesta">
+                        {{ revertiendoPropuestaId === m.propuestaAsociada.idPropuesta ? '⏳...' : '✓ Aceptar' }}
+                      </button>
+                      <button type="button" 
+                              class="btn-rollback-reject" 
+                              (click)="cancelarReversionPropuesta($event)">
+                        ✗ Rechazar
+                      </button>
+                    </div>
+                  </div>
+                  }
+                </div>
+              </div>
+              }
+              @if (m.propuestaAsociada.estado === 'REVERTIDA') {
+              <span class="reverted-badge-text">⏪ Propuesta revertida (diagrama restaurado)</span>
+              }
+              @if (m.propuestaAsociada.estado === 'RECHAZADA') {
+              <span class="rejected-badge-text">✗ Propuesta rechazada por el equipo</span>
+              }
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+      }
+
+      }
+
+      @if (iaColaborativaProcesando) {
+      <div class="colab-msg-row colab-msg-row--ai">
+        <div class="ai-bubble ai-bubble--thinking">
+          <div class="thinking-spinner">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          </div>
+          <span>CodeForge AI está analizando el proyecto y formulando su respuesta para el equipo...</span>
+        </div>
+      </div>
+      }
+    </div>
+
+    <!-- COMPOSER INPUT LIMPIO (ESTILO EMIL KOWALSKI) -->
+    <div class="colab-chat-footer">
+      <div class="colab-composer-card">
+        <form (submit)="$event.preventDefault(); enviarMensajeColaborativo()" class="colab-chat-form">
+          <input type="text"
+                 class="colab-chat-input"
+                 [(ngModel)]="textoMensajeColaborativo"
+                 name="textoMensajeColaborativo"
+                 placeholder="Escribe una pregunta o instrucción para la IA..."
+                 [disabled]="iaColaborativaProcesando"
+                 autocomplete="off" />
+
+          <button type="submit" 
+                  class="colab-send-btn" 
+                  [disabled]="iaColaborativaProcesando || !textoMensajeColaborativo.trim()">
+            {{ iaColaborativaProcesando ? 'Enviando...' : 'Enviar ↵' }}
+          </button>
+        </form>
+
+        <div class="colab-composer-bottom-bar">
+          <div class="colab-composer-left">
+            <div class="colab-mode-select-wrapper">
+              <span class="colab-mode-select-label">Modo:</span>
+              <select class="colab-mode-select" 
+                      [(ngModel)]="modoIaSeleccionado" 
+                      name="modoIaSeleccionado"
+                      (ngModelChange)="cambiarModoIa($event)"
+                      title="Selecciona la especialidad técnica de la IA">
+                @for (m of modosDisponibles; track m.id) {
+                <option [value]="m.id">{{ m.icono }} {{ m.nombre }}</option>
+                }
+              </select>
+            </div>
+
+            <label class="colab-proposal-toggle" title="Si se activa, la IA preparará una propuesta formal con operaciones ejecutables">
+              <input type="checkbox" [(ngModel)]="generarPropuestaCheck" />
+              <span>Generar propuesta formal</span>
+            </label>
+          </div>
+
+          <div class="colab-composer-right">
+            <!-- SELECTOR DE MODO DE APROBACIÓN (ESTILO CURSOR / ANTIGRAVITY) -->
+            <div class="colab-approval-dropdown-container">
+              <button type="button" 
+                      class="colab-approval-trigger-btn"
+                      [class.colab-approval-trigger-btn--auto]="modoAprobacionIa === 'AUTOMATICO'"
+                      (click)="toggleMenuAprobacion($event)"
+                      title="Configurar modo de aprobación de propuestas">
+                <span class="approval-icon">{{ modoAprobacionIa === 'AUTOMATICO' ? '🛡️' : '✋' }}</span>
+                <span class="approval-label">{{ modoAprobacionIa === 'AUTOMATICO' ? 'Aprobar automáticamente' : 'Solicitar aprobación' }}</span>
+                <span class="approval-caret">▾</span>
+              </button>
+
+              @if (menuAprobacionAbierto) {
+              <div class="colab-approval-menu" (click)="$event.stopPropagation()">
+                <!-- Opción 1: Solicitar aprobación -->
+                <button type="button" 
+                        class="colab-approval-item" 
+                        [class.colab-approval-item--selected]="modoAprobacionIa === 'MANUAL'"
+                        (click)="seleccionarModoAprobacion('MANUAL')">
+                  <span class="approval-item-icon">✋</span>
+                  <div class="approval-item-content">
+                    <span class="approval-item-title">Solicitar aprobación</span>
+                    <span class="approval-item-desc">Pedir confirmación manual antes de aplicar propuestas y permitir rechazarlas</span>
+                  </div>
+                  @if (modoAprobacionIa === 'MANUAL') {
+                  <span class="approval-item-check">✓</span>
+                  }
+                </button>
+
+                <!-- Opción 2: Aprobar automáticamente -->
+                <button type="button" 
+                        class="colab-approval-item" 
+                        [class.colab-approval-item--selected]="modoAprobacionIa === 'AUTOMATICO'"
+                        (click)="seleccionarModoAprobacion('AUTOMATICO')">
+                  <span class="approval-item-icon">🛡️</span>
+                  <div class="approval-item-content">
+                    <span class="approval-item-title">Aprobar automáticamente</span>
+                    <span class="approval-item-desc">Aceptar automáticamente cada propuesta e implementarla de inmediato en el diseño</span>
+                  </div>
+                  @if (modoAprobacionIa === 'AUTOMATICO') {
+                  <span class="approval-item-check">✓</span>
+                  }
+                </button>
+              </div>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    }
+
+    <!-- ========================================== -->
+    <!-- TAB: LISTADO DE PROPUESTAS                 -->
+    <!-- ========================================== -->
+    @if (tabColaborativoActivo === 'PROPUESTAS') {
+    <div class="colab-proposals-stream">
+      <div class="proposals-filter-bar">
+        <span class="filter-label">Filtrar por estado:</span>
+        <button type="button" class="filter-pill" [class.filter-pill--active]="filtroEstadoPropuestas === 'TODAS'" (click)="filtroEstadoPropuestas = 'TODAS'">Todas ({{ propuestasColaborativas.length }})</button>
+        <button type="button" class="filter-pill" [class.filter-pill--active]="filtroEstadoPropuestas === 'PENDIENTE'" (click)="filtroEstadoPropuestas = 'PENDIENTE'">Pendientes ({{ propuestasPendientes.length }})</button>
+        <button type="button" class="filter-pill" [class.filter-pill--active]="filtroEstadoPropuestas === 'APROBADA'" (click)="filtroEstadoPropuestas = 'APROBADA'">Aprobadas</button>
+        <button type="button" class="filter-pill" [class.filter-pill--active]="filtroEstadoPropuestas === 'APLICADA'" (click)="filtroEstadoPropuestas = 'APLICADA'">Aplicadas</button>
+        <button type="button" class="filter-pill" [class.filter-pill--active]="filtroEstadoPropuestas === 'RECHAZADA'" (click)="filtroEstadoPropuestas = 'RECHAZADA'">Rechazadas</button>
+        <button type="button" class="filter-pill" [class.filter-pill--active]="filtroEstadoPropuestas === 'REVERTIDA'" (click)="filtroEstadoPropuestas = 'REVERTIDA'">Revertidas</button>
+      </div>
+
+      @if (propuestasFiltradas.length === 0) {
+      <div class="colab-empty-chat">
+        <h3>No hay propuestas en este estado</h3>
+        <p>Puedes pedirle a la IA en el chat que proponga correcciones o mejoras al diagrama.</p>
+      </div>
+      }
+
+      <div class="proposals-grid">
+        @for (p of propuestasFiltradas; track p.idPropuesta) {
+        <div class="proposal-card-full" [class.proposal-card-full--applied]="p.estado === 'APLICADA'" [class.proposal-card-full--pending]="p.estado === 'PENDIENTE'">
+          <div class="pcard-top">
+            <div>
+              <span class="proposal-id-tag">#{{ p.idPropuesta }}</span>
+              <span class="proposal-status-badge" [class]="'status-' + p.estado.toLowerCase()">{{ p.estado }}</span>
+            </div>
+            <span class="pcard-date">{{ p.fechaCreacion | date:'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+
+          <h3 class="pcard-title">{{ p.titulo }}</h3>
+
+          <div class="pcard-meta">
+            <span>Solicitante: <strong>{{ p.nombreSolicitante }}</strong></span>
+            @if (p.nombreAprobador) {
+            <span>· Aprobador: <strong>{{ p.nombreAprobador }}</strong></span>
+            }
+          </div>
+
+          @if (p.descripcionProblema) {
+          <div class="pcard-section">
+            <strong>Diagnóstico / Problema:</strong>
+            <p>{{ p.descripcionProblema }}</p>
+          </div>
+          }
+
+          @if (p.solucionPropuesta) {
+          <div class="pcard-section">
+            <strong>Solución Técnica:</strong>
+            <p>{{ p.solucionPropuesta }}</p>
+          </div>
+          }
+
+          <div class="pcard-version-box">
+            <span>Versión base: <code>v{{ p.versionOrigen }}</code></span>
+            <span>➔</span>
+            <span>Versión resultante: <code>v{{ p.versionResultante || 'siguiente' }}</code></span>
+            <span class="pcard-ops">Operaciones: {{ p.totalOperaciones || 0 }}</span>
+          </div>
+
+          <div class="pcard-footer-actions">
+            <button type="button" class="btn-prop-view" (click)="verDetallePropuesta(p)">
+              👁️ Ver Detalles y Diferencias
+            </button>
+
+            @if (p.estado === 'PENDIENTE') {
+            <button type="button" class="btn-prop-approve" (click)="aprobarPropuesta(p)">
+              ✓ Aprobar
+            </button>
+            <button type="button" class="btn-prop-reject" (click)="rechazarPropuesta(p)">
+              ✗ Rechazar
+            </button>
+            }
+
+            @if (p.estado === 'APROBADA') {
+            <button type="button" class="btn-prop-apply" 
+                    (click)="aplicarPropuestaDefinitiva(p)"
+                    [disabled]="aplicandoPropuestaId === p.idPropuesta">
+              {{ aplicandoPropuestaId === p.idPropuesta ? '⏳ Aplicando...' : '🚀 Aplicar al Modelo' }}
+            </button>
+            }
+            @if (p.estado === 'APLICADA') {
+            <div class="applied-footer-row">
+              <span class="applied-badge-text">✓ Modificación aplicada en v{{ p.versionResultante }}</span>
+              <div class="rollback-container">
+                <button type="button" 
+                        class="btn-rollback-trigger" 
+                        (click)="iniciarReversionPropuesta(p, $event)"
+                        title="Volver atrás / Revertir cambios de esta propuesta">
+                  <span class="rollback-arrow-icon">↩</span>
+                  <span class="rollback-tooltip-label">Volver atrás</span>
+                </button>
+
+                @if (propuestaRevertirSeleccionada?.idPropuesta === p.idPropuesta) {
+                <div class="rollback-confirm-popover" (click)="$event.stopPropagation()">
+                  <div class="rollback-popover-header">
+                    <span class="rollback-popover-icon">⏪</span>
+                    <span class="rollback-popover-title">¿Volver atrás?</span>
+                  </div>
+                  <p class="rollback-popover-text">
+                    Se revertirán los cambios aplicados y el modelo volverá al estado previo (v{{ p.versionOrigen }}).
+                  </p>
+                  <div class="rollback-popover-actions">
+                    <button type="button" 
+                            class="btn-rollback-accept" 
+                            (click)="confirmarReversionPropuesta(p, $event)"
+                            [disabled]="revertiendoPropuestaId === p.idPropuesta">
+                      {{ revertiendoPropuestaId === p.idPropuesta ? '⏳...' : '✓ Aceptar' }}
+                    </button>
+                    <button type="button" 
+                            class="btn-rollback-reject" 
+                            (click)="cancelarReversionPropuesta($event)">
+                      ✗ Rechazar
+                    </button>
+                  </div>
+                </div>
+                }
+              </div>
+            </div>
+            }
+            @if (p.estado === 'REVERTIDA') {
+            <span class="reverted-badge-text">⏪ Propuesta revertida (diagrama restaurado)</span>
+            }
+            @if (p.estado === 'RECHAZADA') {
+            <span class="rejected-badge-text">✗ Propuesta rechazada</span>
+            }
+          </div>
+        </div>
+        }
+      </div>
+    </div>
+    }
+
+  </div>
+</div>
+}
+
+<!-- ========================================================= -->
+<!-- MODAL: DETALLES Y DIFERENCIAS DE LA PROPUESTA (DIFF)     -->
+<!-- ========================================================= -->
+@if (modalVerPropuestaAbierto && propuestaSeleccionadaParaVer) {
+<div class="cf-modal cf-modal-visible" (click)="cerrarModalVerPropuesta()" style="z-index:1260;">
+  <div class="cf-modal-box cf-modal-box--diff" (click)="$event.stopPropagation()">
+    <div class="colab-modal-header">
+      <div>
+        <span class="colab-header-badge">DETALLES DE PROPUESTA #{{ propuestaSeleccionadaParaVer.idPropuesta }}</span>
+        <h2>{{ propuestaSeleccionadaParaVer.titulo }}</h2>
+        <p>Estado actual: <strong [class]="'status-text-' + propuestaSeleccionadaParaVer.estado.toLowerCase()">{{ propuestaSeleccionadaParaVer.estado }}</strong></p>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarModalVerPropuesta()">×</button>
+    </div>
+
+    <div class="diff-content-scroll">
+      <!-- DETALLES BÁSICOS -->
+      <div class="diff-summary-card">
+        <div class="diff-field">
+          <strong>Problema Detectado:</strong>
+          <p>{{ propuestaSeleccionadaParaVer.descripcionProblema || 'No especificado' }}</p>
+        </div>
+        <div class="diff-field">
+          <strong>Solución Propuesta:</strong>
+          <p>{{ propuestaSeleccionadaParaVer.solucionPropuesta || 'No especificada' }}</p>
+        </div>
+        @if (propuestaSeleccionadaParaVer.riesgosEfectos) {
+        <div class="diff-field">
+          <strong>Riesgos o Efectos Secundarios:</strong>
+          <p>{{ propuestaSeleccionadaParaVer.riesgosEfectos }}</p>
+        </div>
+        }
+        <div class="diff-field">
+          <strong>Control de Concurrencia:</strong>
+          <p>
+            Esta propuesta requiere que el modelo UML se encuentre en la versión base <code>v{{ propuestaSeleccionadaParaVer.versionOrigen }}</code>.
+            Si otro usuario realiza modificaciones previas, CodeForge impedirá la aplicación directa para proteger el trabajo de los colaboradores.
+          </p>
+        </div>
+      </div>
+
+      <!-- LISTA DE OPERACIONES ESTRUCTURADAS (ANTES VS DESPUÉS) -->
+      <div class="diff-operations-container">
+        <h3>Operaciones Concretas a Aplicar ({{ obtenerOperacionesParseadas(propuestaSeleccionadaParaVer.operacionesJson).length }})</h3>
+
+        <div class="diff-operations-list">
+          @for (op of obtenerOperacionesParseadas(propuestaSeleccionadaParaVer.operacionesJson); track $index) {
+          <div class="diff-operation-item">
+            <div class="op-badge-type" [class]="'op-' + op.tipo?.toLowerCase()">
+              {{ op.tipo }}
+            </div>
+            <div class="op-description">
+              {{ formatearDetalleOperacion(op) }}
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+
+      @if (propuestaSeleccionadaParaVer.resultadoAplicacion) {
+      <div class="diff-applied-result">
+        <strong>Resultado de la aplicación:</strong>
+        <pre>{{ propuestaSeleccionadaParaVer.resultadoAplicacion }}</pre>
+      </div>
+      }
+    </div>
+
+    <div class="diff-modal-footer">
+      <button type="button" class="toolbar-btn" (click)="cerrarModalVerPropuesta()">Cerrar</button>
+
+      @if (propuestaSeleccionadaParaVer.estado === 'PENDIENTE') {
+      <button type="button" class="btn-prop-approve" (click)="aprobarPropuesta(propuestaSeleccionadaParaVer); cerrarModalVerPropuesta()">
+        ✓ Aprobar Propuesta
+      </button>
+      <button type="button" class="btn-prop-reject" (click)="rechazarPropuesta(propuestaSeleccionadaParaVer); cerrarModalVerPropuesta()">
+        ✗ Rechazar
+      </button>
+      }
+
+      @if (propuestaSeleccionadaParaVer.estado === 'APROBADA') {
+      <button type="button" class="btn-prop-apply" 
+              (click)="aplicarPropuestaDefinitiva(propuestaSeleccionadaParaVer)"
+              [disabled]="aplicandoPropuestaId === propuestaSeleccionadaParaVer.idPropuesta">
+        {{ aplicandoPropuestaId === propuestaSeleccionadaParaVer.idPropuesta ? '⏳ Aplicando...' : '🚀 Aplicar Cambios al Diagrama' }}
+      </button>
+      }
+      @if (propuestaSeleccionadaParaVer.estado === 'APLICADA') {
+      <span class="applied-badge-text">✓ Modificación aplicada en el modelo v{{ propuestaSeleccionadaParaVer.versionResultante }}</span>
+      }
+      @if (propuestaSeleccionadaParaVer.estado === 'RECHAZADA') {
+      <span class="rejected-badge-text">✗ Propuesta rechazada</span>
+      }
+    </div>
+  </div>
+</div>
+}
 <!-- MODAL: CREAR ELEMENTO (CLASE / INTERFAZ / ENUM)          -->
 <!-- ========================================================= -->
 @if (mostrarModalElemento) {
@@ -1986,3 +2590,126 @@
     </div>
   </div>
 </div>
+
+<!-- ========================================================= -->
+<!-- TOAST NOTIFICACION COLABORATIVA                           -->
+<!-- ========================================================= -->
+@if (notificacionColaborativa) {
+<div class="colab-toast" [class.colab-toast--success]="tipoNotificacionColaborativa === 'success'"
+  [class.colab-toast--error]="tipoNotificacionColaborativa === 'error'"
+  [class.colab-toast--info]="tipoNotificacionColaborativa === 'info'">
+  <span class="colab-toast-icon">
+    {{ tipoNotificacionColaborativa === 'success' ? '✓' : tipoNotificacionColaborativa === 'error' ? '⚠' : '✦' }}
+  </span>
+  <span class="colab-toast-text">{{ notificacionColaborativa }}</span>
+  <button type="button" class="colab-toast-close" (click)="notificacionColaborativa = null">×</button>
+</div>
+}
+
+<!-- ========================================================= -->
+<!-- MODAL: DETALLE / DIFF DE PROPUESTA                        -->
+<!-- ========================================================= -->
+@if (modalVerPropuestaAbierto && propuestaSeleccionadaParaVer) {
+<div class="cf-modal cf-modal-visible colab-diff-modal-overlay" (click)="cerrarModalVerPropuesta()">
+  <div class="cf-modal-box colab-diff-box" (click)="$event.stopPropagation()">
+
+    <div class="colab-diff-header">
+      <div>
+        <span class="panel-label">INSPECCIÓN DE CAMBIOS · PROPUESTA #{{ propuestaSeleccionadaParaVer.idPropuesta }}</span>
+        <h2>{{ propuestaSeleccionadaParaVer.titulo }}</h2>
+      </div>
+      <button type="button" class="cf-close" (click)="cerrarModalVerPropuesta()">×</button>
+    </div>
+
+    <div class="colab-diff-body">
+      <!-- Resumen de metadatos -->
+      <div class="colab-diff-meta-strip">
+        <div>
+          <span>Estado:</span>
+          <span class="colab-status-badge colab-status-badge--{{ propuestaSeleccionadaParaVer.estado.toLowerCase() }}">
+            {{ propuestaSeleccionadaParaVer.estado }}
+          </span>
+        </div>
+        <div>
+          <span>Versión Origen:</span>
+          <code>v{{ propuestaSeleccionadaParaVer.versionOrigen }}</code>
+        </div>
+        <div>
+          <span>Solicitado por:</span>
+          <strong>{{ propuestaSeleccionadaParaVer.nombreSolicitante }}</strong>
+        </div>
+        @if (propuestaSeleccionadaParaVer.nombreAprobador) {
+        <div>
+          <span>Aprobado por:</span>
+          <strong>{{ propuestaSeleccionadaParaVer.nombreAprobador }}</strong>
+        </div>
+        }
+      </div>
+
+      <!-- Problema y Solución -->
+      <div class="colab-diff-section">
+        <h3>Diagnóstico del Problema</h3>
+        <p>{{ propuestaSeleccionadaParaVer.descripcionProblema }}</p>
+      </div>
+
+      <div class="colab-diff-section">
+        <h3>Solución Propuesta</h3>
+        <p>{{ propuestaSeleccionadaParaVer.solucionPropuesta }}</p>
+      </div>
+
+      @if (propuestaSeleccionadaParaVer.riesgosEfectos) {
+      <div class="colab-diff-section colab-diff-section--warning">
+        <h3>Riesgos y Efectos Secundarios</h3>
+        <p>{{ propuestaSeleccionadaParaVer.riesgosEfectos }}</p>
+      </div>
+      }
+
+      <!-- Operaciones concretas a ejecutar -->
+      <div class="colab-diff-section">
+        <h3>Operaciones Concretas ({{ obtenerOperacionesParseadas(propuestaSeleccionadaParaVer.operacionesJson).length }})</h3>
+        <div class="colab-diff-ops-list">
+          @for (op of obtenerOperacionesParseadas(propuestaSeleccionadaParaVer.operacionesJson); track $index) {
+          <div class="colab-diff-op-item">
+            <span class="colab-diff-op-badge colab-diff-op-badge--{{ op.tipo ? op.tipo.toLowerCase() : 'def' }}">
+              {{ op.tipo || 'OPERACION' }}
+            </span>
+            <div class="colab-diff-op-text">
+              <strong>{{ formatearDetalleOperacion(op) }}</strong>
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+
+    </div>
+
+    <div class="colab-diff-footer">
+      <button type="button" class="cf-btn cf-btn--ghost" (click)="cerrarModalVerPropuesta()">
+        Cerrar
+      </button>
+
+      @if (propuestaSeleccionadaParaVer.estado === 'PENDIENTE') {
+      <button type="button" class="cf-btn cf-btn--danger" (click)="rechazarPropuesta(propuestaSeleccionadaParaVer); cerrarModalVerPropuesta();">
+        ✕ Rechazar Propuesta
+      </button>
+      <button type="button" class="cf-btn cf-btn--success" (click)="aprobarPropuesta(propuestaSeleccionadaParaVer)">
+        ✓ Aprobar Propuesta
+      </button>
+      }
+
+      @if (propuestaSeleccionadaParaVer.estado === 'APROBADA') {
+      <button type="button" class="cf-btn cf-btn--primary" (click)="aplicarPropuestaDefinitiva(propuestaSeleccionadaParaVer)">
+        ⚡ Aplicar Cambios al Diagrama UML
+      </button>
+      }
+      @if (propuestaSeleccionadaParaVer.estado === 'APLICADA') {
+      <span class="applied-badge-text">✓ Modificación aplicada en el diagrama v{{ propuestaSeleccionadaParaVer.versionResultante }}</span>
+      }
+      @if (propuestaSeleccionadaParaVer.estado === 'RECHAZADA') {
+      <span class="rejected-badge-text">✗ Propuesta rechazada</span>
+      }
+    </div>
+
+  </div>
+</div>
+}

@@ -71,14 +71,28 @@ export class ColaboracionService {
           console.error('Error parseando mensaje de cursor STOMP:', error);
         }
       });
+
+      // Reconectar suscripciones adicionales registradas
+      for (const [topico, cb] of this.listenersAdicionales.entries()) {
+        const sub = this.client!.subscribe(topico, (m) => {
+          try {
+            cb(JSON.parse(m.body));
+          } catch (e) {
+            console.error('Error parseando mensaje topic:', topico, e);
+          }
+        });
+        this.suscripcionesAdicionales.set(topico, sub);
+      }
     };
 
     this.client.onDisconnect = () => {
       this.conectado = false;
+      this.suscripcionesAdicionales.clear();
     };
 
     this.client.onWebSocketClose = () => {
       this.conectado = false;
+      this.suscripcionesAdicionales.clear();
     };
 
     this.client.onStompError = (frame) => {
@@ -86,6 +100,37 @@ export class ColaboracionService {
     };
 
     this.client.activate();
+  }
+
+  private listenersAdicionales = new Map<string, (datos: any) => void>();
+  private suscripcionesAdicionales = new Map<string, StompSubscription>();
+
+  /**
+   * Permite suscribirse a cualquier tópico STOMP (ej. /topic/proyecto/{id}/ia-chat)
+   */
+  suscribirTopic(destino: string, callback: (datos: any) => void): void {
+    this.listenersAdicionales.set(destino, callback);
+    if (this.conectado && this.client && this.client.connected) {
+      if (this.suscripcionesAdicionales.has(destino)) {
+        this.suscripcionesAdicionales.get(destino)?.unsubscribe();
+      }
+      const sub = this.client.subscribe(destino, (m) => {
+        try {
+          callback(JSON.parse(m.body));
+        } catch (e) {
+          console.error('Error en callback topic:', destino, e);
+        }
+      });
+      this.suscripcionesAdicionales.set(destino, sub);
+    }
+  }
+
+  desuscribirTopic(destino: string): void {
+    this.listenersAdicionales.delete(destino);
+    if (this.suscripcionesAdicionales.has(destino)) {
+      this.suscripcionesAdicionales.get(destino)?.unsubscribe();
+      this.suscripcionesAdicionales.delete(destino);
+    }
   }
 
   /**
