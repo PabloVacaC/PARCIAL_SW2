@@ -41,7 +41,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-1234}
       CODEFORGE_AI_LOCAL_URL: http://codeforge-ollama:11434
       CODEFORGE_AI_LOCAL_MODEL: qwen2.5-coder:1.5b
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-${GEMINI_API_KEY:-}}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
     networks:
       - codeforge-net
