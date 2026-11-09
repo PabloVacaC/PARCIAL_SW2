@@ -8,6 +8,15 @@ import java.util.Map;
 
 import org.springframework.stereotype.Component;
 
+/**
+ * Generador del motor de Inteligencia Artificial para el cliente Flutter de CodeForge.
+ * 
+ * Implementa una arquitectura híbrida de dos niveles:
+ * 1. Nivel 1 (Semántico LLM): Cliente HTTP contra el motor local Ollama (qwen2.5-coder:1.5b)
+ *    para realizar Function/Tool Calling inteligente a partir de lenguaje natural libre.
+ * 2. Nivel 2 (Fallback Heurístico Offline): Motor de reglas y expresiones regulares que opera
+ *    al 100% en el dispositivo de forma instantánea si Ollama no está en ejecución.
+ */
 @Component
 public class FlutterLocalAiEngineGenerator {
 
@@ -30,24 +39,30 @@ public class FlutterLocalAiEngineGenerator {
         Files.writeString(archivo, contenido);
 
         System.out.println(
-                "FLUTTER AI: Local AI Engine creado: " + archivo
+                "FLUTTER AI: Local AI Engine híbrido (Ollama + Fallback) creado: " + archivo
         );
     }
 
     private String construirEngine(List<Map<String, Object>> elementos) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("/// Motor de Inteligencia Artificial Semántica Local Offline.\n");
+        sb.append("/// Motor de Inteligencia Artificial Semántica Híbrido para Flutter (CodeForge).\n");
         sb.append("///\n");
-        sb.append("/// Procesa comandos de voz y texto en lenguaje natural en el dispositivo\n");
-        sb.append("/// sin requerir conexión a internet ni modelos pesados.\n");
-        sb.append("/// Conecta directamente con las herramientas generadas por CodeForge.\n");
+        sb.append("/// Nivel 1: Inferencia local con Ollama (qwen2.5-coder:1.5b) para Tool Calling inteligente.\n");
+        sb.append("/// Nivel 2: Motor heurístico offline basado en reglas para fallback instantáneo y tolerante a fallos.\n");
+        sb.append("/// Conecta directamente con las herramientas generadas por CodeForge en AiToolExecutor.\n");
         sb.append("\n");
+        sb.append("import 'dart:convert';\n");
+        sb.append("import 'dart:async';\n");
+        sb.append("import 'package:http/http.dart' as http;\n");
+        sb.append("import '../config/api_config.dart';\n");
+        sb.append("import 'ai_tools.dart';\n");
         sb.append("import 'ai_tool_executor.dart';\n");
         sb.append("\n");
 
         sb.append("enum AiActionType {\n");
         sb.append("  crear,\n");
+        sb.append("  actualizar,\n");
         sb.append("  listar,\n");
         sb.append("  obtener,\n");
         sb.append("  eliminar,\n");
@@ -61,6 +76,7 @@ public class FlutterLocalAiEngineGenerator {
         sb.append("  final String? toolEjecutada;\n");
         sb.append("  final Map<String, dynamic>? parametros;\n");
         sb.append("  final dynamic datos;\n");
+        sb.append("  final String origen;\n");
         sb.append("\n");
         sb.append("  const LocalAiResponse({\n");
         sb.append("    required this.exitoso,\n");
@@ -69,6 +85,7 @@ public class FlutterLocalAiEngineGenerator {
         sb.append("    this.toolEjecutada,\n");
         sb.append("    this.parametros,\n");
         sb.append("    this.datos,\n");
+        sb.append("    this.origen = 'Motor Heurístico Local Offline',\n");
         sb.append("  });\n");
         sb.append("}\n\n");
 
@@ -86,7 +103,10 @@ public class FlutterLocalAiEngineGenerator {
         sb.append("    return s.replaceAll(RegExp(r'\\s+'), ' ').trim();\n");
         sb.append("  }\n\n");
 
-        sb.append("  /// Procesa el comando de voz/texto y ejecuta la acción en el backend\n");
+        sb.append("  /// Procesa el comando de voz/texto del usuario.\n");
+        sb.append("  /// Intenta primero ejecutar Tool Calling con Ollama (qwen2.5-coder:1.5b).\n");
+        sb.append("  /// Si Ollama no está activo o falla la comunicación, conmuta automáticamente\n");
+        sb.append("  /// al motor heurístico offline sin interrumpir la experiencia del usuario.\n");
         sb.append("  static Future<LocalAiResponse> procesarComando(String comando) async {\n");
         sb.append("    final textoNorm = normalizar(comando);\n");
         sb.append("    if (textoNorm.isEmpty) {\n");
@@ -94,9 +114,150 @@ public class FlutterLocalAiEngineGenerator {
         sb.append("        exitoso: false,\n");
         sb.append("        mensajeVoz: 'No escuché ningún comando.',\n");
         sb.append("        comandoOriginal: comando,\n");
+        sb.append("        origen: 'Sistema',\n");
         sb.append("      );\n");
         sb.append("    }\n\n");
 
+        sb.append("    // 1. Inferencia semántica con Ollama Local\n");
+        sb.append("    if (ApiConfig.useOllama) {\n");
+        sb.append("      try {\n");
+        sb.append("        final respOllama = await _procesarConOllama(comando);\n");
+        sb.append("        if (respOllama != null) {\n");
+        sb.append("          return respOllama;\n");
+        sb.append("        }\n");
+        sb.append("      } catch (e) {\n");
+        sb.append("        // Fallback transparente a motor heurístico\n");
+        sb.append("        // ignore: avoid_print\n");
+        sb.append("        print('CODEFORGE AI: Ollama no disponible ($e). Conmutando a motor heurístico...');\n");
+        sb.append("      }\n");
+        sb.append("    }\n\n");
+
+        sb.append("    // 2. Fallback de alta resiliencia: Motor heurístico offline\n");
+        sb.append("    return _procesarConHeuristica(comando, textoNorm);\n");
+        sb.append("  }\n\n");
+
+        // Método Ollama
+        sb.append("  /// Cliente de inferencia y Tool Calling contra Ollama Local (qwen2.5-coder:1.5b)\n");
+        sb.append("  static Future<LocalAiResponse?> _procesarConOllama(String comando) async {\n");
+        sb.append("    String url = ApiConfig.ollamaUrl.trim();\n");
+        sb.append("    if (url.endsWith('/')) {\n");
+        sb.append("      url = url.substring(0, url.length - 1);\n");
+        sb.append("    }\n");
+        sb.append("    final endpoint = Uri.parse('$url/api/chat');\n\n");
+
+        sb.append("    // Construcción del resumen de herramientas disponibles\n");
+        sb.append("    final StringBuffer herramientasPrompt = StringBuffer();\n");
+        sb.append("    for (final tool in codeForgeAiTools) {\n");
+        sb.append("      final props = (tool.parameters['properties'] as Map<String, dynamic>?)?.keys.toList() ?? [];\n");
+        sb.append("      herramientasPrompt.writeln('- ${tool.name}: ${tool.description} (parámetros: $props)');\n");
+        sb.append("    }\n\n");
+
+        sb.append("    final systemPrompt = '''\n");
+        sb.append("Eres el Asistente de Inteligencia Artificial de la aplicación generada por CodeForge.\n");
+        sb.append("Tu tarea es interpretar la solicitud en lenguaje natural del usuario y mapearla a una de las herramientas del sistema.\n\n");
+        sb.append("CATÁLOGO DE HERRAMIENTAS DISPONIBLES:\n");
+        sb.append("${herramientasPrompt.toString()}\n");
+        sb.append("REGLAS ESTRICTAS DE RESPUESTA:\n");
+        sb.append("1. Si la solicitud corresponde a una herramienta, responde ÚNICAMENTE un JSON con:\n");
+        sb.append("   {\\n");
+        sb.append("     \\\"tool\\\": \\\"nombre_de_la_tool\\\",\\n");
+        sb.append("     \\\"arguments\\\": { \\\"parametro\\\": valor },\\n");
+        sb.append("     \\\"confirmacion\\\": \\\"Mensaje en español claro y conciso para leer por voz al usuario\\\"\\n");
+        sb.append("   }\\n");
+        sb.append("2. Si la solicitud es un saludo, pregunta general o no coincide con ninguna herramienta, responde:\\n");
+        sb.append("   {\\n");
+        sb.append("     \\\"tool\\\": null,\\n");
+        sb.append("     \\\"arguments\\\": {},\\n");
+        sb.append("     \\\"confirmacion\\\": \\\"Respuesta concisa y útil para el usuario\\\"\\n");
+        sb.append("   }\\n");
+        sb.append("3. Para parámetros numéricos (IDs, cantidades), conviértelos a números y no a cadenas de texto.\\n");
+        sb.append("4. Responde EXCLUSIVAMENTE con el objeto JSON, sin formato Markdown ni texto introductorio.\n");
+        sb.append("''';\n\n");
+
+        sb.append("    final body = jsonEncode({\n");
+        sb.append("      'model': ApiConfig.ollamaModel,\n");
+        sb.append("      'stream': false,\n");
+        sb.append("      'format': 'json',\n");
+        sb.append("      'options': {\n");
+        sb.append("        'temperature': 0.1,\n");
+        sb.append("        'num_predict': 512,\n");
+        sb.append("      },\n");
+        sb.append("      'messages': [\n");
+        sb.append("        {'role': 'system', 'content': systemPrompt},\n");
+        sb.append("        {'role': 'user', 'content': comando},\n");
+        sb.append("      ],\n");
+        sb.append("    });\n\n");
+
+        sb.append("    final resp = await http.post(\n");
+        sb.append("      endpoint,\n");
+        sb.append("      headers: {'Content-Type': 'application/json'},\n");
+        sb.append("      body: body,\n");
+        sb.append("    ).timeout(Duration(seconds: ApiConfig.ollamaTimeoutSegundos));\n\n");
+
+        sb.append("    if (resp.statusCode != 200) {\n");
+        sb.append("      throw Exception('HTTP ${resp.statusCode} desde Ollama: ${resp.body}');\n");
+        sb.append("    }\n\n");
+
+        sb.append("    final Map<String, dynamic> data = jsonDecode(utf8.decode(resp.bodyBytes));\n");
+        sb.append("    final String? content = data['message']?['content'];\n");
+        sb.append("    if (content == null || content.trim().isEmpty) {\n");
+        sb.append("      throw Exception('Respuesta vacía de Ollama');\n");
+        sb.append("    }\n\n");
+
+        sb.append("    // Limpieza de delimitadores si el modelo incluyó texto extra\n");
+        sb.append("    String cleanJson = content.trim();\n");
+        sb.append("    final startIdx = cleanJson.indexOf('{');\n");
+        sb.append("    final endIdx = cleanJson.lastIndexOf('}');\n");
+        sb.append("    if (startIdx != -1 && endIdx != -1 && endIdx >= startIdx) {\n");
+        sb.append("      cleanJson = cleanJson.substring(startIdx, endIdx + 1);\n");
+        sb.append("    }\n\n");
+
+        sb.append("    final Map<String, dynamic> parsed = jsonDecode(cleanJson);\n");
+        sb.append("    final String? toolName = parsed['tool']?.toString();\n");
+        sb.append("    final Map<String, dynamic> args = (parsed['arguments'] is Map)\n");
+        sb.append("        ? Map<String, dynamic>.from(parsed['arguments'])\n");
+        sb.append("        : <String, dynamic>{};\n");
+        sb.append("    final String confirmacion = parsed['confirmacion']?.toString() ?? '';\n\n");
+
+        sb.append("    // Caso conversacional / sin herramienta requerida\n");
+        sb.append("    if (toolName == null || toolName.isEmpty || toolName.toLowerCase() == 'null') {\n");
+        sb.append("      return LocalAiResponse(\n");
+        sb.append("        exitoso: true,\n");
+        sb.append("        mensajeVoz: confirmacion.isNotEmpty ? confirmacion : 'Entendido.',\n");
+        sb.append("        comandoOriginal: comando,\n");
+        sb.append("        origen: 'Ollama (${ApiConfig.ollamaModel})',\n");
+        sb.append("      );\n");
+        sb.append("    }\n\n");
+
+        sb.append("    // Ejecución de la herramienta mapeada en AiToolExecutor\n");
+        sb.append("    try {\n");
+        sb.append("      final res = await AiToolExecutor.ejecutar(toolName, args);\n");
+        sb.append("      return LocalAiResponse(\n");
+        sb.append("        exitoso: true,\n");
+        sb.append("        mensajeVoz: confirmacion.isNotEmpty\n");
+        sb.append("            ? confirmacion\n");
+        sb.append("            : 'Acción $toolName ejecutada con éxito.',\n");
+        sb.append("        comandoOriginal: comando,\n");
+        sb.append("        toolEjecutada: toolName,\n");
+        sb.append("        parametros: args,\n");
+        sb.append("        datos: res,\n");
+        sb.append("        origen: 'Ollama (${ApiConfig.ollamaModel})',\n");
+        sb.append("      );\n");
+        sb.append("    } catch (e) {\n");
+        sb.append("      return LocalAiResponse(\n");
+        sb.append("        exitoso: false,\n");
+        sb.append("        mensajeVoz: 'Error al ejecutar $toolName: $e',\n");
+        sb.append("        comandoOriginal: comando,\n");
+        sb.append("        toolEjecutada: toolName,\n");
+        sb.append("        parametros: args,\n");
+        sb.append("        origen: 'Ollama (${ApiConfig.ollamaModel})',\n");
+        sb.append("      );\n");
+        sb.append("    }\n");
+        sb.append("  }\n\n");
+
+        // Método Heurístico (Fallback)
+        sb.append("  /// Motor heurístico local offline basado en reglas semánticas y expresiones regulares\n");
+        sb.append("  static Future<LocalAiResponse> _procesarConHeuristica(String comando, String textoNorm) async {\n");
         sb.append("    // 1. Detectar tipo de acción\n");
         sb.append("    AiActionType accion = AiActionType.desconocido;\n");
         sb.append("    if (RegExp(r'\\b(registra|registrar|crea|crear|agrega|agregar|inserta|insertar|nuevo|nueva|anade|anadir)\\b').hasMatch(textoNorm)) {\n");
@@ -144,6 +305,7 @@ public class FlutterLocalAiEngineGenerator {
                 sb.append("            exitoso: false,\n");
                 sb.append("            mensajeVoz: 'Por favor indica el ID de ").append(nombre).append(" que deseas eliminar.',\n");
                 sb.append("            comandoOriginal: comando,\n");
+                sb.append("            origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("          );\n");
                 sb.append("        }\n");
                 sb.append("        try {\n");
@@ -154,12 +316,14 @@ public class FlutterLocalAiEngineGenerator {
                 sb.append("            comandoOriginal: comando,\n");
                 sb.append("            toolEjecutada: '").append(nombreFlutter).append("_eliminar',\n");
                 sb.append("            parametros: {'id': idExtraido},\n");
+                sb.append("            origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("          );\n");
                 sb.append("        } catch (e) {\n");
                 sb.append("          return LocalAiResponse(\n");
                 sb.append("            exitoso: false,\n");
                 sb.append("            mensajeVoz: 'Error al eliminar ").append(nombre).append(": $e',\n");
                 sb.append("            comandoOriginal: comando,\n");
+                sb.append("            origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("          );\n");
                 sb.append("        }\n");
                 sb.append("      }\n\n");
@@ -175,12 +339,14 @@ public class FlutterLocalAiEngineGenerator {
                 sb.append("            toolEjecutada: '").append(nombreFlutter).append("_obtener',\n");
                 sb.append("            parametros: {'id': idExtraido},\n");
                 sb.append("            datos: res,\n");
+                sb.append("            origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("          );\n");
                 sb.append("        } catch (e) {\n");
                 sb.append("          return LocalAiResponse(\n");
                 sb.append("            exitoso: false,\n");
                 sb.append("            mensajeVoz: 'No se encontró ").append(nombre).append(" con ID $idExtraido.',\n");
                 sb.append("            comandoOriginal: comando,\n");
+                sb.append("            origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("          );\n");
                 sb.append("        }\n");
                 sb.append("      }\n\n");
@@ -197,12 +363,14 @@ public class FlutterLocalAiEngineGenerator {
                 sb.append("            toolEjecutada: '").append(nombreFlutter).append("_listar',\n");
                 sb.append("            parametros: {},\n");
                 sb.append("            datos: lista,\n");
+                sb.append("            origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("          );\n");
                 sb.append("        } catch (e) {\n");
                 sb.append("          return LocalAiResponse(\n");
                 sb.append("            exitoso: false,\n");
                 sb.append("            mensajeVoz: 'Error al listar ").append(nombre).append(": $e',\n");
                 sb.append("            comandoOriginal: comando,\n");
+                sb.append("            origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("          );\n");
                 sb.append("        }\n");
                 sb.append("      }\n\n");
@@ -247,12 +415,14 @@ public class FlutterLocalAiEngineGenerator {
                 sb.append("              toolEjecutada: '").append(nombreFlutter).append("_actualizar',\n");
                 sb.append("              parametros: params,\n");
                 sb.append("              datos: res,\n");
+                sb.append("              origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("            );\n");
                 sb.append("          } catch (e) {\n");
                 sb.append("            return LocalAiResponse(\n");
                 sb.append("              exitoso: false,\n");
                 sb.append("              mensajeVoz: 'Error al actualizar ").append(nombre).append(": $e',\n");
                 sb.append("              comandoOriginal: comando,\n");
+                sb.append("              origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("            );\n");
                 sb.append("          }\n");
                 sb.append("        } else {\n");
@@ -265,12 +435,14 @@ public class FlutterLocalAiEngineGenerator {
                 sb.append("              toolEjecutada: '").append(nombreFlutter).append("_crear',\n");
                 sb.append("              parametros: params,\n");
                 sb.append("              datos: res,\n");
+                sb.append("              origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("            );\n");
                 sb.append("          } catch (e) {\n");
                 sb.append("            return LocalAiResponse(\n");
                 sb.append("              exitoso: false,\n");
                 sb.append("              mensajeVoz: 'No se pudo crear ").append(nombre).append(": $e',\n");
                 sb.append("              comandoOriginal: comando,\n");
+                sb.append("              origen: 'Motor Heurístico Local Offline',\n");
                 sb.append("            );\n");
                 sb.append("          }\n");
                 sb.append("        }\n");
@@ -284,6 +456,7 @@ public class FlutterLocalAiEngineGenerator {
         sb.append("      exitoso: false,\n");
         sb.append("      mensajeVoz: 'No reconocí la entidad o acción solicitada. Prueba con: Registra un cliente, o Muéstrame todas las facturas.',\n");
         sb.append("      comandoOriginal: comando,\n");
+        sb.append("      origen: 'Motor Heurístico Local Offline',\n");
         sb.append("    );\n");
         sb.append("  }\n");
         sb.append("}\n");

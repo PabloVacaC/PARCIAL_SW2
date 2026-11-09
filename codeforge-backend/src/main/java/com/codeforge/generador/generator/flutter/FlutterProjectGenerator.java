@@ -153,11 +153,17 @@ public class FlutterProjectGenerator {
                     config.resolve("api_config.dart");
 
             String apiConfigContenido = """
-                    /// Configuración del backend Spring Boot generado por CodeForge.
+                    /// Configuración del backend Spring Boot y del motor Ollama para Flutter.
                     ///
-                    /// - Para Chrome / Windows / Mac Desktop / iOS Sim: 'http://localhost:8081'
-                    /// - Para Android Emulator: 'http://10.0.2.2:8081'
-                    /// - Para Celular Físico en la misma red Wi-Fi: 'http://TU_IP_LOCAL:8081'
+                    /// Backend Spring Boot:
+                    /// - Chrome / Windows / Mac Desktop / iOS Sim: 'http://localhost:8081'
+                    /// - Android Emulator: 'http://10.0.2.2:8081'
+                    /// - Celular Físico en la misma red Wi-Fi: 'http://TU_IP_LOCAL:8081'
+                    ///
+                    /// Motor de IA Local (Ollama):
+                    /// - Desktop / Web / iOS Sim: 'http://localhost:11434'
+                    /// - Android Emulator: 'http://10.0.2.2:11434'
+                    /// - Celular Físico: 'http://TU_IP_LOCAL:11434'
                     class ApiConfig {
 
                       static String baseUrl = const String.fromEnvironment(
@@ -165,8 +171,34 @@ public class FlutterProjectGenerator {
                         defaultValue: 'http://localhost:8081',
                       );
 
+                      static String ollamaUrl = const String.fromEnvironment(
+                        'CODEFORGE_OLLAMA_URL',
+                        defaultValue: 'http://localhost:11434',
+                      );
+
+                      static String ollamaModel = const String.fromEnvironment(
+                        'CODEFORGE_OLLAMA_MODEL',
+                        defaultValue: 'qwen2.5-coder:1.5b',
+                      );
+
+                      static bool useOllama = true;
+
+                      static int ollamaTimeoutSegundos = 8;
+
                       static void setBaseUrl(String url) {
                         baseUrl = url;
+                      }
+
+                      static void setOllamaUrl(String url) {
+                        ollamaUrl = url;
+                      }
+
+                      static void setOllamaModel(String model) {
+                        ollamaModel = model;
+                      }
+
+                      static void setUseOllama(bool value) {
+                        useOllama = value;
                       }
 
                     }
@@ -187,10 +219,11 @@ public class FlutterProjectGenerator {
                     flutterRoot.resolve("README.md");
 
             String readmeContenido = """
-                    # Flutter generado por CodeForge
+                    # Flutter generado por CodeForge con Soporte IA Ollama
 
-                    Este proyecto fue generado automáticamente
-                    a partir de un modelo UML.
+                    Este proyecto fue generado automáticamente a partir de un modelo UML de CodeForge.
+                    Incluye un asistente de voz y comandos en lenguaje natural impulsado por **Ollama (qwen2.5-coder:1.5b)**
+                    con **fallback automático e instantáneo** a un motor heurístico offline en caso de que Ollama no esté activo.
 
                     ## Ejecutar
 
@@ -199,33 +232,39 @@ public class FlutterProjectGenerator {
                     flutter run
                     ```
 
-                    ## Backend
+                    ## Configuración de Entorno (Opcional)
 
-                    La aplicación se comunica con el backend
-                    Spring Boot generado por CodeForge.
-
-                    La URL del backend puede configurarse mediante:
+                    Puedes pasar los endpoints en tiempo de compilación o configurarlos desde la pantalla del asistente móvil:
 
                     ```bash
-                    flutter run \
-                      --dart-define=CODEFORGE_API_URL=http://IP_PC:8081
+                    flutter run \\
+                      --dart-define=CODEFORGE_API_URL=http://localhost:8081 \\
+                      --dart-define=CODEFORGE_OLLAMA_URL=http://localhost:11434 \\
+                      --dart-define=CODEFORGE_OLLAMA_MODEL=qwen2.5-coder:1.5b
                     ```
+
+                    *Nota para Android Emulator:*
+                    - Spring Boot: `http://10.0.2.2:8081`
+                    - Ollama Local: `http://10.0.2.2:11434`
 
                     ## Arquitectura
 
                     ```text
-                    Flutter
+                    Flutter (Voice Assistant)
                        |
-                       | HTTP
-                       v
-                    Spring Boot
+                       +---> Ollama (qwen2.5-coder:1.5b) [Tool Calling IA]
+                       |        | (Fallback si está offline)
+                       |        v
+                       +---> Motor Heurístico Offline (Regex Semántico)
                        |
                        v
-                    PostgreSQL
+                    Spring Boot Backend (REST APIs)
+                       |
+                       v
+                    PostgreSQL / MongoDB
                     ```
 
-                    La carpeta `lib/generated` contiene
-                    archivos generados automáticamente por CodeForge.
+                    La carpeta `lib/generated` contiene los modelos, APIs y herramientas IA generadas.
                     """;
 
             Files.writeString(
