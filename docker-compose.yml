@@ -1,0 +1,67 @@
+services:
+  # 1. Base de datos PostgreSQL
+  codeforge-db:
+    image: postgres:16-alpine
+    container_name: codeforge-db
+    restart: always
+    environment:
+      POSTGRES_DB: codeforge_central
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-1234}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - codeforge-net
+
+  # 2. Motor de IA Local Ollama
+  codeforge-ollama:
+    image: ollama/ollama:latest
+    container_name: codeforge-ollama
+    restart: always
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - codeforge-net
+
+  # 3. Backend Spring Boot 3
+  codeforge-backend:
+    build:
+      context: ./codeforge-backend
+      dockerfile: Dockerfile
+    container_name: codeforge-backend
+    restart: always
+    depends_on:
+      - codeforge-db
+      - codeforge-ollama
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://codeforge-db:5432/codeforge_central
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-1234}
+      CODEFORGE_AI_LOCAL_URL: http://codeforge-ollama:11434
+      CODEFORGE_AI_LOCAL_MODEL: qwen2.5-coder:1.5b
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    networks:
+      - codeforge-net
+
+  # 4. Frontend Angular + Nginx
+  codeforge-frontend:
+    build:
+      context: ./codeforge-frontend
+      dockerfile: Dockerfile
+    container_name: codeforge-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - codeforge-backend
+    networks:
+      - codeforge-net
+
+volumes:
+  postgres_data:
+  ollama_models:
+
+networks:
+  codeforge-net:
+    driver: bridge
