@@ -363,9 +363,15 @@ public class BackendGeneratorService {
 
             Path proyectoOrigen = Path.of("").toAbsolutePath();
             if (!Files.exists(proyectoOrigen.resolve(".mvn/wrapper/maven-wrapper.properties"))) {
-                Path altPath = Path.of("C:\\Users\\Juan Pablo\\Desktop\\PARCIAL_SW1\\codeforge-backend");
-                if (Files.exists(altPath.resolve(".mvn/wrapper/maven-wrapper.properties"))) {
-                    proyectoOrigen = altPath;
+                Path alt1 = Path.of("codeforge-backend").toAbsolutePath();
+                Path alt2 = Path.of("/app");
+                Path alt3 = Path.of("C:\\Users\\Juan Pablo\\Desktop\\PARCIAL_SW1\\codeforge-backend");
+                if (Files.exists(alt1.resolve(".mvn/wrapper/maven-wrapper.properties"))) {
+                    proyectoOrigen = alt1;
+                } else if (Files.exists(alt2.resolve(".mvn/wrapper/maven-wrapper.properties"))) {
+                    proyectoOrigen = alt2;
+                } else if (Files.exists(alt3.resolve(".mvn/wrapper/maven-wrapper.properties"))) {
+                    proyectoOrigen = alt3;
                 }
             }
 

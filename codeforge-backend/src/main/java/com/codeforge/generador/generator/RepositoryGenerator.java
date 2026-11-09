@@ -104,6 +104,16 @@ public class RepositoryGenerator {
                 "import org.springframework.data.jpa.repository.JpaRepository;\n"
         );
 
+        if ("LocalDate".equals(tipoId)) {
+            codigo.append("import java.time.LocalDate;\n");
+        } else if ("LocalDateTime".equals(tipoId)) {
+            codigo.append("import java.time.LocalDateTime;\n");
+        } else if ("LocalTime".equals(tipoId)) {
+            codigo.append("import java.time.LocalTime;\n");
+        } else if ("UUID".equals(tipoId)) {
+            codigo.append("import java.util.UUID;\n");
+        }
+
         codigo.append(
                 "import com.codeforge.generated.entity."
         );
