@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Client, StompSubscription } from '@stomp/stompjs';
+import { getWsBrokerUrl } from '../config/api.config';
 
 export interface CursorMessage {
   proyectoId: number;
@@ -50,7 +51,7 @@ export class ColaboracionService {
     this.proyectoIdActual = proyectoId;
 
     this.client = new Client({
-      brokerURL: 'ws://localhost:8080/ws-colaboracion',
+      brokerURL: getWsBrokerUrl(),
       reconnectDelay: 3000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,

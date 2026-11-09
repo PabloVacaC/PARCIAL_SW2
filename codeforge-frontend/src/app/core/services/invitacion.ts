@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { Invitacion } from '../../auth/models/invitacion.model';
+import { getApiBaseUrl } from '../config/api.config';
 
 export interface UsuarioBusqueda {
   idUsuario: number;
@@ -27,10 +28,10 @@ export class InvitacionService {
   private readonly http = inject(HttpClient);
 
   private readonly apiUrl =
-    'http://localhost:8080/api/invitaciones';
+    `${getApiBaseUrl()}/api/invitaciones`;
 
   private readonly usuariosUrl =
-    'http://localhost:8080/api/usuarios';
+    `${getApiBaseUrl()}/api/usuarios`;
 
 
   obtenerRecibidas(

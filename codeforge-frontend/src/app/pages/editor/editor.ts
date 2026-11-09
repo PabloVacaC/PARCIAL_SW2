@@ -25,6 +25,7 @@ import { ColaboracionService, CursorMessage } from '../../core/services/colabora
 import { IaColaborativaService } from '../../core/services/ia-colaborativa.service';
 import { IaChatMensaje, IaPropuesta, ModoIa, IaPreguntaRequest, IaUmlFinding } from '../../core/models/ia-colaborativa.model';
 import { MarkdownPipe } from '../../core/pipes/markdown.pipe';
+import { getApiBaseUrl } from '../../core/config/api.config';
 
 export interface CursorRemoto {
   usuarioId: number;
@@ -450,7 +451,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
     this.http
       .post<{ respuesta?: string; message?: string; content?: string }>(
-        'http://localhost:8080/api/ia/asistente',
+        `${getApiBaseUrl()}/api/ia/asistente`,
         solicitud
       )
       .subscribe({
@@ -1138,8 +1139,8 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
   private audioTimer: ReturnType<typeof setInterval> | null = null;
 
   private readonly endpointsAudioUml = [
-    'http://localhost:8080/api/ia/uml/audio',
-    'http://localhost:8080/api/ia/uml/voz'
+    `${getApiBaseUrl()}/api/ia/uml/audio`,
+    `${getApiBaseUrl()}/api/ia/uml/voz`
   ];
 
   generarUmlDesdeImagen(event: Event): void {
@@ -1186,7 +1187,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
     this.http
       .post<ContenidoUML>(
-        'http://localhost:8080/api/ia/uml/imagen',
+        `${getApiBaseUrl()}/api/ia/uml/imagen`,
         formData
       )
       .subscribe({
@@ -1954,7 +1955,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
         const elemTarget = elem;
         return this.http
-          .delete(`http://localhost:8080/api/modelos/${idModelo}/elementos/${elemTarget.id}/atributos/${atrEncontrado.id}`)
+          .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${elemTarget.id}/atributos/${atrEncontrado.id}`)
           .pipe(
             map(() => {
               elemTarget.atributos = (elemTarget.atributos ?? []).filter(a => a.id !== atrEncontrado.id);
@@ -2006,7 +2007,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
         const elemTarget = elem;
         return this.http
-          .delete(`http://localhost:8080/api/modelos/${idModelo}/elementos/${elemTarget.id}/operaciones/${opEncontrada.id}`)
+          .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${elemTarget.id}/operaciones/${opEncontrada.id}`)
           .pipe(
             map(() => {
               elemTarget.operaciones = (elemTarget.operaciones ?? []).filter(o => o.id !== opEncontrada.id);
@@ -2072,7 +2073,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
         const idRel = relEncontrada.id;
         return this.http
-          .delete(`http://localhost:8080/api/modelos/${idModelo}/relaciones/${idRel}`)
+          .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/relaciones/${idRel}`)
           .pipe(
             map(() => {
               this.relaciones = this.relaciones.filter(r => r.id !== idRel);
@@ -2104,7 +2105,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
         }
 
         return this.http
-          .delete(`http://localhost:8080/api/modelos/${idModelo}/elementos/${elem.id}`)
+          .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${elem.id}`)
           .pipe(
             map(() => {
               this.elementos = this.elementos.filter(e => e.id !== elem.id);
@@ -2175,7 +2176,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
     return this.http
       .post<ModeloUML>(
-        `http://localhost:8080/api/modelos/${idModelo}/elementos`,
+        `${getApiBaseUrl()}/api/modelos/${idModelo}/elementos`,
         dto
       )
       .pipe(
@@ -2241,7 +2242,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
           return this.http
             .post<AtributoUML>(
-              `http://localhost:8080/api/modelos/${this.modeloActual!.idModelo}/elementos/${idElemento}/atributos`,
+              `${getApiBaseUrl()}/api/modelos/${this.modeloActual!.idModelo}/elementos/${idElemento}/atributos`,
               dto
             )
             .pipe(
@@ -2302,7 +2303,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
     return this.http
       .post<OperacionUML>(
-        `http://localhost:8080/api/modelos/${this.modeloActual!.idModelo}/elementos/${idElemento}/operaciones`,
+        `${getApiBaseUrl()}/api/modelos/${this.modeloActual!.idModelo}/elementos/${idElemento}/operaciones`,
         dto
       )
       .pipe(
@@ -2313,7 +2314,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
             .pipe(
               concatMap(parametro =>
                 this.http.post<ParametroUML>(
-                  `http://localhost:8080/api/modelos/${this.modeloActual!.idModelo}/elementos/${idElemento}/operaciones/${operacionGuardada.id}/parametros`,
+                  `${getApiBaseUrl()}/api/modelos/${this.modeloActual!.idModelo}/elementos/${idElemento}/operaciones/${operacionGuardada.id}/parametros`,
                   {
                     nombre: parametro.nombre.trim(),
                     tipo: parametro.tipo?.trim() || 'String',
@@ -2397,7 +2398,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
 
     return this.http
       .post<RelacionUML>(
-        `http://localhost:8080/api/modelos/${this.modeloActual.idModelo}/relaciones`,
+        `${getApiBaseUrl()}/api/modelos/${this.modeloActual.idModelo}/relaciones`,
         dto
       )
       .pipe(
@@ -2483,7 +2484,7 @@ generarBackend(): void {
 
   this.http
     .post(
-      `http://localhost:8080/api/generador/modelos/${idModelo}/backend`,
+      `${getApiBaseUrl()}/api/generador/modelos/${idModelo}/backend`,
       null,
       {
         observe: 'response',
@@ -3047,7 +3048,7 @@ exportarJson(): void {
     }
 
     this.http
-      .get<ModeloUML[]>(`http://localhost:8080/api/modelos/proyecto/${idProyecto}`)
+      .get<ModeloUML[]>(`${getApiBaseUrl()}/api/modelos/proyecto/${idProyecto}`)
       .subscribe({
         next: (modelos) => {
           if (!modelos || modelos.length === 0) return;
@@ -3159,7 +3160,7 @@ exportarJson(): void {
     this.errorModelo = '';
 
     this.http
-      .get<ModeloUML[]>(`http://localhost:8080/api/modelos/proyecto/${idProyecto}`)
+      .get<ModeloUML[]>(`${getApiBaseUrl()}/api/modelos/proyecto/${idProyecto}`)
       .pipe(
         finalize(() => {
           this.cargandoModelo = false;
@@ -3194,7 +3195,7 @@ exportarJson(): void {
     };
 
     this.http
-      .post<ModeloUML>('http://localhost:8080/api/modelos', body)
+      .post<ModeloUML>(`${getApiBaseUrl()}/api/modelos`, body)
       .subscribe({
         next: (modelo) => {
           this.modeloActual = modelo;
@@ -3861,7 +3862,7 @@ exportarJson(): void {
     this.guardandoPosicion = true;
 
     this.http
-      .put(`http://localhost:8080/api/modelos/${this.modeloActual.idModelo}/elementos/${idElemento}`, {
+      .put(`${getApiBaseUrl()}/api/modelos/${this.modeloActual.idModelo}/elementos/${idElemento}`, {
         posicionX: pos.x,
         posicionY: pos.y
       })
@@ -3937,7 +3938,7 @@ exportarJson(): void {
     this.guardandoElemento = true;
 
     this.http
-      .post<ModeloUML>(`http://localhost:8080/api/modelos/${this.modeloActual.idModelo}/elementos`, dto)
+      .post<ModeloUML>(`${getApiBaseUrl()}/api/modelos/${this.modeloActual.idModelo}/elementos`, dto)
       .pipe(
         finalize(() => {
           this.guardandoElemento = false;
@@ -3983,7 +3984,7 @@ exportarJson(): void {
     this.guardandoElemento = true;
 
     this.http
-      .put(`http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}`, dto)
+      .put(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}`, dto)
       .pipe(
         finalize(() => {
           this.guardandoElemento = false;
@@ -4019,7 +4020,7 @@ exportarJson(): void {
     this.eliminando = true;
 
     this.http
-      .delete(`http://localhost:8080/api/modelos/${this.modeloActual.idModelo}/elementos/${idElemento}`)
+      .delete(`${getApiBaseUrl()}/api/modelos/${this.modeloActual.idModelo}/elementos/${idElemento}`)
       .pipe(
         finalize(() => {
           this.eliminando = false;
@@ -4102,7 +4103,7 @@ exportarJson(): void {
     this.guardandoAtributo = true;
 
     this.http
-      .post<AtributoUML>(`http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}/atributos`, dto)
+      .post<AtributoUML>(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/atributos`, dto)
       .pipe(
         finalize(() => {
           this.guardandoAtributo = false;
@@ -4167,7 +4168,7 @@ exportarJson(): void {
     this.guardandoAtributo = true;
 
     this.http
-      .put(`http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}/atributos/${idAtributo}`, dto)
+      .put(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/atributos/${idAtributo}`, dto)
       .pipe(
         finalize(() => {
           this.guardandoAtributo = false;
@@ -4203,7 +4204,7 @@ exportarJson(): void {
     const idElemento = this.elementoSeleccionado.id;
 
     this.http
-      .delete(`http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}/atributos/${idAtributo}`)
+      .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/atributos/${idAtributo}`)
       .subscribe({
         next: () => {
           if (this.elementoSeleccionado) {
@@ -4318,7 +4319,7 @@ exportarJson(): void {
     return from(parametros).pipe(
       concatMap(parametro =>
         this.http.post<ParametroUML>(
-          `http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${operacion.id}/parametros`,
+          `${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${operacion.id}/parametros`,
           {
             nombre: parametro.nombre,
             tipo: parametro.tipo,
@@ -4361,7 +4362,7 @@ exportarJson(): void {
 
     this.http
       .post<OperacionUML>(
-        `http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}/operaciones`,
+        `${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/operaciones`,
         dto
       )
       .pipe(
@@ -4466,7 +4467,7 @@ exportarJson(): void {
 
     this.http
       .post<ParametroUML>(
-        `http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${idOperacion}/parametros`,
+        `${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${idOperacion}/parametros`,
         dto
       )
       .pipe(
@@ -4510,7 +4511,7 @@ exportarJson(): void {
 
     this.http
       .put<ParametroUML>(
-        `http://localhost:8080/api/modelos/${this.modeloActual.idModelo}/elementos/${this.elementoSeleccionado.id}/operaciones/${this.idOperacionEditando}/parametros/${parametro.id}`,
+        `${getApiBaseUrl()}/api/modelos/${this.modeloActual.idModelo}/elementos/${this.elementoSeleccionado.id}/operaciones/${this.idOperacionEditando}/parametros/${parametro.id}`,
         dto
       )
       .subscribe({
@@ -4538,7 +4539,7 @@ exportarJson(): void {
 
     this.http
       .delete(
-        `http://localhost:8080/api/modelos/${this.modeloActual.idModelo}/elementos/${this.elementoSeleccionado.id}/operaciones/${this.idOperacionEditando}/parametros/${parametro.id}`
+        `${getApiBaseUrl()}/api/modelos/${this.modeloActual.idModelo}/elementos/${this.elementoSeleccionado.id}/operaciones/${this.idOperacionEditando}/parametros/${parametro.id}`
       )
       .subscribe({
         next: () => {
@@ -4601,7 +4602,7 @@ exportarJson(): void {
 
     this.http
       .put(
-        `http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${idOperacion}`,
+        `${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${idOperacion}`,
         dto
       )
       .pipe(
@@ -4635,7 +4636,7 @@ exportarJson(): void {
     const idElemento = this.elementoSeleccionado.id;
 
     this.http
-      .delete(`http://localhost:8080/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${idOperacion}`)
+      .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${idOperacion}`)
       .subscribe({
         next: () => {
           if (this.elementoSeleccionado) {
@@ -4774,7 +4775,7 @@ exportarJson(): void {
       };
 
       this.http
-        .post<ElementoUML>(`http://localhost:8080/api/modelos/${idModelo}/elementos`, dtoElemento)
+        .post<ElementoUML>(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos`, dtoElemento)
         .subscribe({
           next: (nuevaClaseCreada) => {
             nuevaClaseCreada.atributos = [];
@@ -4782,7 +4783,7 @@ exportarJson(): void {
             this.elementos = [...this.elementos, nuevaClaseCreada];
 
             this.http
-              .post<RelacionUML>(`http://localhost:8080/api/modelos/${idModelo}/relaciones`, dto)
+              .post<RelacionUML>(`${getApiBaseUrl()}/api/modelos/${idModelo}/relaciones`, dto)
               .pipe(
                 finalize(() => {
                   this.guardandoRelacion = false;
@@ -4816,7 +4817,7 @@ exportarJson(): void {
     }
 
     this.http
-      .post<RelacionUML>(`http://localhost:8080/api/modelos/${idModelo}/relaciones`, dto)
+      .post<RelacionUML>(`${getApiBaseUrl()}/api/modelos/${idModelo}/relaciones`, dto)
       .pipe(
         finalize(() => {
           this.guardandoRelacion = false;
@@ -4858,7 +4859,7 @@ exportarJson(): void {
     this.guardandoRelacion = true;
 
     this.http
-      .put(`http://localhost:8080/api/modelos/${idModelo}/relaciones/${idRelacion}`, dto)
+      .put(`${getApiBaseUrl()}/api/modelos/${idModelo}/relaciones/${idRelacion}`, dto)
       .pipe(
         finalize(() => {
           this.guardandoRelacion = false;
@@ -4887,7 +4888,7 @@ exportarJson(): void {
     const idModelo = this.modeloActual.idModelo;
 
     this.http
-      .delete(`http://localhost:8080/api/modelos/${idModelo}/relaciones/${idRelacion}`)
+      .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/relaciones/${idRelacion}`)
       .subscribe({
         next: () => {
           this.relaciones = this.relaciones.filter(r => r.id !== idRelacion);

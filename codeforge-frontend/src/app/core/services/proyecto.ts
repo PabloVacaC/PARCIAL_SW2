@@ -19,6 +19,10 @@ import {
   Colaborador
 } from '../../pages/editor/colaborador.model';
 
+import {
+  getApiBaseUrl
+} from '../config/api.config';
+
 
 export interface CrearProyectoRequest {
 
@@ -39,7 +43,7 @@ export class ProyectoService {
 
 
   private readonly apiUrl =
-    'http://localhost:8080/api/proyectos';
+    `${getApiBaseUrl()}/api/proyectos`;
 
 
   obtenerMisProyectos(): Observable<Proyecto[]> {

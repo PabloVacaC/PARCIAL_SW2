@@ -11,6 +11,7 @@ import {
   ModoIa
 } from '../models/ia-colaborativa.model';
 import { ColaboracionService } from './colaboracion.service';
+import { getApiBaseUrl } from '../config/api.config';
 
 @Injectable({
   providedIn: 'root'
@@ -18,7 +19,7 @@ import { ColaboracionService } from './colaboracion.service';
 export class IaColaborativaService {
   private readonly http = inject(HttpClient);
   private readonly colaboracionService = inject(ColaboracionService);
-  private readonly baseUrl = 'http://localhost:8080/api/ia/colaborativa';
+  private readonly baseUrl = `${getApiBaseUrl()}/api/ia/colaborativa`;
 
   /**
    * Obtiene la conversación compartida del proyecto y su historial completo.

@@ -3,6 +3,7 @@ import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { ContenidoUML } from '../models/intercambio.model';
+import { getApiBaseUrl } from '../../core/config/api.config';
 
 @Injectable({
   providedIn: 'root'
@@ -12,7 +13,7 @@ export class IntercambioService {
   private readonly http = inject(HttpClient);
 
   private readonly API =
-    'http://localhost:8080/api/intercambio';
+    `${getApiBaseUrl()}/api/intercambio`;
 
   // =========================================================
   // EXPORTAR JSON
