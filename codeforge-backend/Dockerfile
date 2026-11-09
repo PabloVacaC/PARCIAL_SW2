@@ -5,9 +5,9 @@ COPY .mvn/ .mvn
 COPY mvnw pom.xml ./
 RUN chmod +x mvnw
 COPY src ./src
-RUN ./mvnw clean package -DskipTests
+RUN ./mvnw clean package -DskipTests && rm -rf /root/.m2
 
-# Etapa 2: Imagen de ejecución
+# Etapa 2: Imagen de ejecución liviana
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
