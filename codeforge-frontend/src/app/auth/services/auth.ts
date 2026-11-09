@@ -6,7 +6,7 @@ import { Router } from '@angular/router';
 import { LoginRequest } from '../models/login-request';
 import { LoginResponse } from '../models/login-response';
 import { RegistroRequest } from '../models/registro-request';
-import { getApiBaseUrl } from '../../../core/config/api.config';
+import { getApiBaseUrl } from '../../core/config/api.config';
 
 export interface RegistroResponse {
   idUsuario: number;

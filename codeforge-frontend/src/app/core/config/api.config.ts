@@ -28,3 +28,4 @@ export function getWsBrokerUrl(): string {
   }
   return 'ws://localhost:8080/ws-colaboracion';
 }
+
