@@ -375,12 +375,10 @@ public class BackendGeneratorService {
                 }
             }
 
-            if (Files.exists(proyectoOrigen.resolve(".mvn/wrapper/maven-wrapper.properties"))) {
-                mavenWrapperGenerator.generar(
-                        carpetaTemporal,
-                        proyectoOrigen
-                );
-            }
+            mavenWrapperGenerator.generar(
+                    carpetaTemporal,
+                    proyectoOrigen
+            );
 
             /*
              * ============================================================
