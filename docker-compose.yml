@@ -30,6 +30,8 @@ services:
       dockerfile: Dockerfile
     container_name: codeforge-backend
     restart: always
+    ports:
+      - "8080:8080"
     depends_on:
       - codeforge-db
       - codeforge-ollama
