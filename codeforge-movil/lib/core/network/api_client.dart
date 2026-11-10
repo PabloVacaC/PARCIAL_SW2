@@ -68,16 +68,17 @@ class ApiClient {
         for (final candidate in ApiConfig.candidateHosts) {
           if (candidate == currentHost) continue;
           try {
-            final fallbackUrl = url.replaceFirst(currentHost, candidate);
+            final String baseCandidate = candidate == '3.85.57.219' ? 'http://$candidate/api' : 'http://$candidate:8080/api';
+            final String pathAndQuery = url.substring(url.indexOf('/api') + 4);
+            final fallbackUrl = '$baseCandidate$pathAndQuery';
             final resFallback = await _httpClient
                 .get(Uri.parse(fallbackUrl), headers: headers)
                 .timeout(const Duration(seconds: 3));
 
             if (resFallback.statusCode >= 200 && resFallback.statusCode < 300) {
               final data = _procesarRespuesta(resFallback);
-              final newBase = 'http://$candidate:8080/api';
-              ApiConfig.setBaseUrl(newBase);
-              await _storageService.guardarBaseUrl(newBase);
+              ApiConfig.setBaseUrl(baseCandidate);
+              await _storageService.guardarBaseUrl(baseCandidate);
               _offlineState.setOffline(false);
               _cacheService.guardar(url, data);
               return data;
@@ -139,16 +140,17 @@ class ApiClient {
         for (final candidate in ApiConfig.candidateHosts) {
           if (candidate == currentHost) continue;
           try {
-            final fallbackUrl = url.replaceFirst(currentHost, candidate);
+            final String baseCandidate = candidate == '3.85.57.219' ? 'http://$candidate/api' : 'http://$candidate:8080/api';
+            final String pathAndQuery = url.substring(url.indexOf('/api') + 4);
+            final fallbackUrl = '$baseCandidate$pathAndQuery';
             final resFallback = await _httpClient
                 .post(Uri.parse(fallbackUrl), headers: headers, body: bodyJson)
                 .timeout(const Duration(seconds: 4));
 
             if (resFallback.statusCode >= 200 && resFallback.statusCode < 500) {
               final data = _procesarRespuesta(resFallback);
-              final newBase = 'http://$candidate:8080/api';
-              ApiConfig.setBaseUrl(newBase);
-              await _storageService.guardarBaseUrl(newBase);
+              ApiConfig.setBaseUrl(baseCandidate);
+              await _storageService.guardarBaseUrl(baseCandidate);
               _offlineState.setOffline(false);
               return data;
             }

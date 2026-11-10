@@ -74,6 +74,15 @@ class _LoginViewState extends State<LoginView> {
               runSpacing: 8,
               children: [
                 ActionChip(
+                  avatar: const Icon(Icons.cloud_done_rounded, size: 16, color: AppColors.accent),
+                  label: const Text('Nube AWS (Online)'),
+                  backgroundColor: AppColors.surface,
+                  labelStyle: AppTypography.bodySmall.copyWith(color: Colors.white),
+                  onPressed: () {
+                    serverController.text = 'http://3.85.57.219/api';
+                  },
+                ),
+                ActionChip(
                   avatar: const Icon(Icons.usb_rounded, size: 16, color: AppColors.accent),
                   label: const Text('Cable USB (127.0.0.1)'),
                   backgroundColor: AppColors.surface,
@@ -107,7 +116,7 @@ class _LoginViewState extends State<LoginView> {
               controller: serverController,
               style: AppTypography.bodyMedium,
               decoration: const InputDecoration(
-                hintText: 'http://192.168.0.19:8080/api',
+                hintText: 'http://3.85.57.219/api',
               ),
             ),
           ],
@@ -267,6 +276,25 @@ class _LoginViewState extends State<LoginView> {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.cloud_done_rounded, size: 15),
+                                  label: const Text('Nube AWS (Online)'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.accent,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 8),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () async {
+                                    ApiConfig.setBaseUrl('http://3.85.57.219/api');
+                                    await SecureStorageService().guardarBaseUrl('http://3.85.57.219/api');
+                                    if (mounted) setState(() {});
+                                    _ejecutarLogin();
+                                  },
+                                ),
                                 ElevatedButton.icon(
                                   icon: const Icon(Icons.usb_rounded, size: 15),
                                   label: const Text('Cable USB (127.0.0.1)'),

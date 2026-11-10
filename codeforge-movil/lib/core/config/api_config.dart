@@ -2,8 +2,9 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConfig {
-  static const String defaultHostIp = '192.168.0.20';
+  static const String defaultHostIp = '3.85.57.219';
   static const List<String> candidateHosts = [
+    '3.85.57.219',
     '127.0.0.1',
     '192.168.0.20',
     '192.168.0.19',
@@ -23,17 +24,17 @@ class ApiConfig {
     }
 
     if (kIsWeb) {
-      return 'http://localhost:8080/api';
+      return 'http://3.85.57.219/api';
     }
 
     try {
       if (Platform.isAndroid || Platform.isIOS) {
-        // Por defecto usamos 127.0.0.1 si adb reverse está activo, o la IP de red
-        return 'http://127.0.0.1:8080/api';
+        // Por defecto conectamos a la nube AWS pública para funcionar de inmediato en cualquier móvil
+        return 'http://3.85.57.219/api';
       }
     } catch (_) {}
 
-    return 'http://127.0.0.1:8080/api';
+    return 'http://3.85.57.219/api';
   }
 
   // Endpoints de solo lectura y autenticación autorizada
