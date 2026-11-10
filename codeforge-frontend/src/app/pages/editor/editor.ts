@@ -24,6 +24,8 @@ import { IntercambioService } from '../../intercambio/services/intercambio.servi
 import { ColaboracionService, CursorMessage } from '../../core/services/colaboracion.service';
 import { IaColaborativaService } from '../../core/services/ia-colaborativa.service';
 import { IaChatMensaje, IaPropuesta, ModoIa, IaPreguntaRequest, IaUmlFinding } from '../../core/models/ia-colaborativa.model';
+import { BitacoraService } from '../../core/services/bitacora.service';
+import { BitacoraEvento } from '../../core/models/bitacora.model';
 import { MarkdownPipe } from '../../core/pipes/markdown.pipe';
 import { getApiBaseUrl } from '../../core/config/api.config';
 
@@ -306,6 +308,7 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
   private readonly intercambioService = inject(IntercambioService);
   private readonly colaboracionService = inject(ColaboracionService);
   private readonly iaColaborativaService = inject(IaColaborativaService);
+  private readonly bitacoraService = inject(BitacoraService);
   private readonly ngZone = inject(NgZone);
 
   // =========================================================
@@ -625,7 +628,9 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
   generarPropuestaCheck = false;
   mensajesColaborativos: IaChatMensaje[] = [];
   propuestasColaborativas: IaPropuesta[] = [];
-  tabColaborativoActivo: 'CHAT' | 'PROPUESTAS' | 'HALLAZGOS' = 'CHAT';
+  tabColaborativoActivo: 'CHAT' | 'PROPUESTAS' | 'BITACORA' | 'HALLAZGOS' = 'CHAT';
+  eventosBitacora: BitacoraEvento[] = [];
+  cargandoBitacora = false;
   hallazgosUml: IaUmlFinding[] = [];
   cargandoHallazgos = false;
   filtroEstadoPropuestas: string = 'TODAS';
@@ -854,6 +859,62 @@ export class Editor implements OnInit, AfterViewInit, OnDestroy {
       this.cargarModeloUML(idProyecto);
       this.cargarDiagnosticoUml();
       this.mostrarAlertaColaborativa('El modelo UML fue actualizado a la versión ' + (evt?.version || 'nueva'), 'info');
+    });
+
+    // Cargar bitácora y suscribirse en tiempo real
+    this.cargarBitacora(idProyecto);
+    this.bitacoraService.suscribir(idProyecto, (nuevoEvento) => {
+      if (!this.eventosBitacora.some(e => e.id === nuevoEvento.id)) {
+        this.eventosBitacora.unshift(nuevoEvento);
+        this.changeDetector.detectChanges();
+      }
+    });
+  }
+
+  cargarBitacora(idProyecto: number): void {
+    if (!idProyecto) return;
+    this.cargandoBitacora = true;
+    this.bitacoraService.listar(idProyecto).subscribe({
+      next: (lista) => {
+        this.eventosBitacora = lista || [];
+        this.cargandoBitacora = false;
+        this.changeDetector.detectChanges();
+      },
+      error: (err) => {
+        console.warn('CODEFORGE BITACORA: Error cargando bitácora:', err);
+        this.cargandoBitacora = false;
+        this.changeDetector.detectChanges();
+      }
+    });
+  }
+
+  registrarEnBitacora(tipoAccion: string, descripcion: string, detallesJson?: string): void {
+    if (!this.idProyectoActual) return;
+    const usuario = this.auth.obtenerUsuario();
+    const nombreCompleto = usuario
+      ? `${usuario.nombre || ''} ${usuario.apellido || ''}`.trim() || usuario.username
+      : 'Usuario';
+
+    const evento: Partial<BitacoraEvento> = {
+      idProyecto: this.idProyectoActual,
+      usuarioId: usuario?.idUsuario || null,
+      usuarioNombre: nombreCompleto,
+      usuarioUsername: usuario?.username || 'usuario',
+      esIa: false,
+      tipoAccion,
+      origen: 'LIENZO_MANUAL',
+      descripcion,
+      detallesJson: detallesJson || null
+    };
+
+    this.bitacoraService.registrar(this.idProyectoActual, evento).subscribe({
+      next: (guardado) => {
+        if (!this.eventosBitacora.some(e => e.id === guardado.id)) {
+          this.eventosBitacora.unshift(guardado);
+          this.changeDetector.detectChanges();
+        }
+      },
+      error: (err) => console.warn('CODEFORGE BITACORA: Error registrando acción manual:', err)
     });
   }
 
@@ -2933,6 +2994,9 @@ exportarJson(): void {
     if (this.idProyectoActual && this.miUsuarioId) {
       this.colaboracionService.enviarSalida(this.idProyectoActual, this.miUsuarioId);
     }
+    if (this.idProyectoActual) {
+      this.bitacoraService.desuscribir(this.idProyectoActual);
+    }
     this.colaboracionService.desconectar();
 
     const canvasElem = this.umlCanvas?.nativeElement;
@@ -3958,6 +4022,7 @@ exportarJson(): void {
           if (recienCreado) {
             this.seleccionarElemento(recienCreado.id);
           }
+          this.registrarEnBitacora('CREAR_ELEMENTO', `Creó el elemento ${dto.tipo} '${nombre}' en el lienzo.`);
         },
         error: (error) => {
           console.error('EDITOR UML: error creando elemento:', error);
@@ -4005,6 +4070,7 @@ exportarJson(): void {
             };
           }
           this.sincronizarConJointJS();
+          this.registrarEnBitacora('EDITAR_ELEMENTO', `Modificó las propiedades del elemento '${dto.nombre}'.`);
         },
         error: (err) => {
           console.error('EDITOR UML: error editando elemento:', err);
@@ -4017,6 +4083,7 @@ exportarJson(): void {
     if (!this.modeloActual) return;
     if (!confirm('¿Estás seguro de eliminar este elemento UML y sus relaciones asociadas?')) return;
 
+    const nombreElem = this.elementos.find(e => e.id === idElemento)?.nombre || idElemento;
     this.eliminando = true;
 
     this.http
@@ -4036,6 +4103,7 @@ exportarJson(): void {
           }
           this.changeDetector.detectChanges();
           this.sincronizarConJointJS();
+          this.registrarEnBitacora('ELIMINAR_ELEMENTO', `Eliminó el elemento '${nombreElem}' del lienzo.`);
         },
         error: (error) => {
           console.error('EDITOR UML: error eliminando elemento:', error);
@@ -4120,6 +4188,8 @@ exportarJson(): void {
           this.mostrarModalAtributo = false;
           this.changeDetector.detectChanges();
           this.sincronizarConJointJS();
+          const claseNombre = this.elementoSeleccionado?.nombre || 'Clase';
+          this.registrarEnBitacora('AGREGAR_ATRIBUTO', `Agregó el atributo '${nombre}: ${tipo}' a la clase '${claseNombre}'.`);
         },
         error: (error) => {
           console.error('EDITOR UML: error creando atributo:', error);
@@ -4188,6 +4258,8 @@ exportarJson(): void {
           this.mostrarModalEditarAtributo = false;
           this.changeDetector.detectChanges();
           this.sincronizarConJointJS();
+          const claseNombre = this.elementoSeleccionado?.nombre || 'Clase';
+          this.registrarEnBitacora('EDITAR_ATRIBUTO', `Modificó el atributo '${dto.nombre}' en la clase '${claseNombre}'.`);
         },
         error: (err) => {
           console.error('EDITOR UML: error editando atributo:', err);
@@ -4202,6 +4274,8 @@ exportarJson(): void {
 
     const idModelo = this.modeloActual.idModelo;
     const idElemento = this.elementoSeleccionado.id;
+    const claseNombre = this.elementoSeleccionado.nombre;
+    const atrNombre = this.elementoSeleccionado.atributos?.find(a => a.id === idAtributo)?.nombre || idAtributo;
 
     this.http
       .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/atributos/${idAtributo}`)
@@ -4216,6 +4290,7 @@ exportarJson(): void {
           }
           this.changeDetector.detectChanges();
           this.sincronizarConJointJS();
+          this.registrarEnBitacora('ELIMINAR_ATRIBUTO', `Eliminó el atributo '${atrNombre}' de la clase '${claseNombre}'.`);
         },
         error: (error) => {
           console.error('EDITOR UML: error eliminando atributo:', error);
@@ -4392,6 +4467,8 @@ exportarJson(): void {
           this.mostrarModalOperacion = false;
           this.changeDetector.detectChanges();
           this.sincronizarConJointJS();
+          const claseNombre = this.elementoSeleccionado?.nombre || 'Clase';
+          this.registrarEnBitacora('AGREGAR_OPERACION', `Agregó la operación '${dto.nombre}(): ${dto.tipoRetorno}' a la clase '${claseNombre}'.`);
         },
         error: (error) => {
           console.error('EDITOR UML: error agregando operación:', error);
@@ -4634,6 +4711,8 @@ exportarJson(): void {
 
     const idModelo = this.modeloActual.idModelo;
     const idElemento = this.elementoSeleccionado.id;
+    const claseNombre = this.elementoSeleccionado.nombre;
+    const opNombre = this.elementoSeleccionado.operaciones?.find(o => o.id === idOperacion)?.nombre || idOperacion;
 
     this.http
       .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/elementos/${idElemento}/operaciones/${idOperacion}`)
@@ -4648,6 +4727,7 @@ exportarJson(): void {
           }
           this.changeDetector.detectChanges();
           this.sincronizarConJointJS();
+          this.registrarEnBitacora('ELIMINAR_OPERACION', `Eliminó la operación '${opNombre}' de la clase '${claseNombre}'.`);
         },
         error: (error) => {
           console.error('EDITOR UML: error eliminando operación:', error);
@@ -4831,6 +4911,9 @@ exportarJson(): void {
           this.changeDetector.detectChanges();
           this.sincronizarConJointJS();
           this.seleccionarRelacion(relacion.id);
+          const origNom = this.elementos.find(e => e.id === dto.origen)?.nombre || 'Elemento';
+          const destNom = this.elementos.find(e => e.id === dto.destino)?.nombre || 'Elemento';
+          this.registrarEnBitacora('CREAR_RELACION', `Creó relación ${relacion.tipo} entre '${origNom}' y '${destNom}'.`);
         },
         error: (error) => {
           console.error('EDITOR UML: error creando relación:', error);
@@ -4873,6 +4956,7 @@ exportarJson(): void {
             this.relaciones[index] = { ...this.relaciones[index], ...dto };
           }
           this.sincronizarConJointJS();
+          this.registrarEnBitacora('EDITAR_RELACION', `Modificó las propiedades de la relación ${dto.tipo}.`);
         },
         error: (err) => {
           console.error('EDITOR UML: error editando relación:', err);
@@ -4886,6 +4970,8 @@ exportarJson(): void {
     if (!confirm('¿Eliminar esta relación?')) return;
 
     const idModelo = this.modeloActual.idModelo;
+    const rel = this.relaciones.find(r => r.id === idRelacion);
+    const tipoRel = rel?.tipo || 'RELACION';
 
     this.http
       .delete(`${getApiBaseUrl()}/api/modelos/${idModelo}/relaciones/${idRelacion}`)
@@ -4897,6 +4983,7 @@ exportarJson(): void {
           }
           this.changeDetector.detectChanges();
           this.sincronizarConJointJS();
+          this.registrarEnBitacora('ELIMINAR_RELACION', `Eliminó una relación ${tipoRel} del lienzo.`);
         },
         error: (error) => {
           console.error('EDITOR UML: error eliminando relación:', error);

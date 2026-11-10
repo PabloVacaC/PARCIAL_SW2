@@ -86,6 +86,9 @@ class IaColaborativaServiceTest {
     private SimpMessagingTemplate messagingTemplate;
 
     @Mock
+    private com.codeforge.bitacora.service.BitacoraService bitacoraService;
+
+    @Mock
     private IaLocalService iaLocalService;
 
     private IaColaborativaService service;
@@ -110,6 +113,7 @@ class IaColaborativaServiceTest {
                 modeloRepository,
                 usuarioRepository,
                 messagingTemplate,
+                bitacoraService,
                 iaLocalService,
                 "", // sin API key para forzar fallback local seguro en tests
                 "gemini-3.5-flash",

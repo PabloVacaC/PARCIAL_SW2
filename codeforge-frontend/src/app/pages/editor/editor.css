@@ -4503,3 +4503,250 @@
   color: #fbbf24;
   border: 1px solid rgba(245, 158, 11, 0.5);
 }
+
+
+/* ========================================================= */
+/* TAB DE BITÁCORA (AUDITORÍA HUMANO + IA)                   */
+/* ========================================================= */
+.colab-bitacora-stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+  background: #080d1a;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bitacora-header-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.bitacora-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bitacora-header-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.bitacora-header-subtitle {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.btn-refresh-bitacora {
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #cbd5e1;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-refresh-bitacora:hover {
+  background: #334155;
+  color: #fff;
+  border-color: #64748b;
+}
+
+.bitacora-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.bitacora-item {
+  display: flex;
+  gap: 14px;
+  position: relative;
+}
+
+.bitacora-item__icon-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 32px;
+  flex-shrink: 0;
+}
+
+.bitacora-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #1e293b;
+  border: 1.5px solid #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.bitacora-avatar--ia {
+  background: linear-gradient(135deg, #4f46e5, #9333ea);
+  border-color: #a855f7;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+}
+
+.bitacora-line {
+  flex: 1;
+  width: 2px;
+  background: #1e293b;
+  margin: 4px 0;
+}
+
+.bitacora-item:last-child .bitacora-line {
+  display: none;
+}
+
+.bitacora-item__content {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  transition: border-color 0.2s;
+}
+
+.bitacora-item--ia .bitacora-item__content {
+  border-color: rgba(147, 51, 234, 0.35);
+  background: linear-gradient(180deg, rgba(30, 27, 75, 0.4) 0%, #0f172a 100%);
+}
+
+.bitacora-item__content:hover {
+  border-color: #3b82f6;
+}
+
+.bitacora-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.bitacora-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.author-name {
+  font-size: 13px;
+  color: #f1f5f9;
+  font-weight: 700;
+}
+
+.author-name--ia {
+  color: #c084fc;
+}
+
+.author-username {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.badge-ia-dev {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bitacora-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge-origen {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  font-weight: 600;
+}
+
+.badge-origen--chat {
+  background: rgba(147, 51, 234, 0.15);
+  color: #c084fc;
+  border-color: rgba(147, 51, 234, 0.3);
+}
+
+.bitacora-time {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.bitacora-desc {
+  font-size: 12.5px;
+  color: #cbd5e1;
+  line-height: 1.45;
+  margin: 0 0 8px 0;
+}
+
+.bitacora-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.action-tag {
+  font-size: 10px;
+  font-family: monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  text-transform: uppercase;
+}
+
+.action-tag--propuesta_aplicada,
+.action-tag--crear_clase,
+.action-tag--crear_elemento {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.action-tag--eliminar_clase,
+.action-tag--eliminar_elemento,
+.action-tag--eliminar_relacion,
+.action-tag--eliminar_atributo,
+.action-tag--eliminar_operacion {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.action-tag--propuesta_revertida {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}

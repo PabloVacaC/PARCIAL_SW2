@@ -1100,6 +1100,17 @@
           <span class="tab-count-pill tab-count-pill--pending">{{ propuestasPendientes.length }}</span>
           }
         </button>
+        <button type="button" 
+                class="colab-segmented-btn" 
+                [class.colab-segmented-btn--active]="tabColaborativoActivo === 'BITACORA'"
+                (click)="tabColaborativoActivo = 'BITACORA'"
+                role="tab"
+                [attr.aria-selected]="tabColaborativoActivo === 'BITACORA'">
+          Bitácora
+          @if (eventosBitacora.length > 0) {
+          <span class="tab-count-pill">{{ eventosBitacora.length }}</span>
+          }
+        </button>
       </div>
 
       <div class="colab-modal-header__actions">
@@ -1516,6 +1527,81 @@
         </div>
         }
       </div>
+    </div>
+    }
+
+    <!-- ========================================== -->
+    <!-- TAB: BITÁCORA DE ACCIONES (HUMANO + IA)   -->
+    <!-- ========================================== -->
+    @if (tabColaborativoActivo === 'BITACORA') {
+    <div class="colab-bitacora-stream">
+      <div class="bitacora-header-banner">
+        <div class="bitacora-header-info">
+          <span class="bitacora-header-title">📋 Registro de Auditoría y Bitácora</span>
+          <span class="bitacora-header-subtitle">Historial en tiempo real de cambios en el lienzo y propuestas de la IA</span>
+        </div>
+        <button type="button" class="btn-refresh-bitacora" (click)="cargarBitacora(idProyectoActual!)" title="Recargar bitácora">
+          🔄 Actualizar
+        </button>
+      </div>
+
+      @if (cargandoBitacora) {
+      <div class="colab-empty-chat">
+        <p>⏳ Cargando eventos de la bitácora...</p>
+      </div>
+      } @else if (eventosBitacora.length === 0) {
+      <div class="colab-empty-chat">
+        <h3>No hay actividades registradas en la bitácora</h3>
+        <p>Los cambios que realicen tú, tu equipo o la IA en el lienzo aparecerán aquí automáticamente.</p>
+      </div>
+      } @else {
+      <div class="bitacora-timeline">
+        @for (ev of eventosBitacora; track ev.id || $index) {
+        <div class="bitacora-item" [class.bitacora-item--ia]="ev.esIa">
+          <div class="bitacora-item__icon-col">
+            <div class="bitacora-avatar" [class.bitacora-avatar--ia]="ev.esIa">
+              @if (ev.esIa) {
+                <span>🤖</span>
+              } @else {
+                <span>👤</span>
+              }
+            </div>
+            <div class="bitacora-line"></div>
+          </div>
+
+          <div class="bitacora-item__content">
+            <div class="bitacora-item__header">
+              <div class="bitacora-author">
+                <strong class="author-name" [class.author-name--ia]="ev.esIa">
+                  {{ ev.usuarioNombre }}
+                </strong>
+                @if (ev.esIa) {
+                  <span class="badge-ia-dev">IA Desarrolladora</span>
+                } @else if (ev.usuarioUsername) {
+                  <span class="author-username">@{{ ev.usuarioUsername }}</span>
+                }
+              </div>
+
+              <div class="bitacora-meta">
+                <span class="badge-origen" [class.badge-origen--chat]="ev.origen === 'CHAT_COLABORATIVO'">
+                  {{ ev.origen === 'CHAT_COLABORATIVO' ? '💬 Chat Colaborativo' : '🎨 Lienzo Manual' }}
+                </span>
+                <span class="bitacora-time">{{ ev.fechaHora | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+              </div>
+            </div>
+
+            <p class="bitacora-desc">{{ ev.descripcion }}</p>
+
+            @if (ev.tipoAccion) {
+            <div class="bitacora-tags">
+              <span class="action-tag action-tag--{{ ev.tipoAccion.toLowerCase() }}">{{ ev.tipoAccion }}</span>
+            </div>
+            }
+          </div>
+        </div>
+        }
+      </div>
+      }
     </div>
     }
 

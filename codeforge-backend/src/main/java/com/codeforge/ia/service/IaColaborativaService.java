@@ -60,6 +60,7 @@ public class IaColaborativaService {
     private final ModeloRepository modeloRepository;
     private final UsuarioRepository usuarioRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final com.codeforge.bitacora.service.BitacoraService bitacoraService;
     private final ObjectMapper objectMapper;
     private final IaLocalService iaLocalService;
     private final String proveedor;
@@ -77,6 +78,7 @@ public class IaColaborativaService {
             ModeloRepository modeloRepository,
             UsuarioRepository usuarioRepository,
             SimpMessagingTemplate messagingTemplate,
+            com.codeforge.bitacora.service.BitacoraService bitacoraService,
             IaLocalService iaLocalService,
             @Value("${codeforge.ai.gemini.api-key:}") String apiKey,
             @Value("${codeforge.ai.gemini.model:gemini-3.5-flash}") String model,
@@ -91,6 +93,7 @@ public class IaColaborativaService {
         this.modeloRepository = modeloRepository;
         this.usuarioRepository = usuarioRepository;
         this.messagingTemplate = messagingTemplate;
+        this.bitacoraService = bitacoraService;
         this.iaLocalService = iaLocalService;
         this.proveedor = (proveedor != null && !proveedor.isBlank()) ? proveedor.trim().toUpperCase() : "HIBRIDO";
         this.objectMapper = new ObjectMapper();
@@ -524,6 +527,23 @@ public class IaColaborativaService {
         IaPropuestaDTO dtoResultado = convertirAPropuestaDTO(guardada);
         broadcastPropuesta(idProyecto, dtoResultado);
 
+        // Registrar en la Bitácora del proyecto
+        try {
+            bitacoraService.registrarEvento(new com.codeforge.bitacora.dto.BitacoraEventoCreateDTO(
+                    idProyecto,
+                    null,
+                    "IA CodeForge",
+                    "ia-codeforge",
+                    true,
+                    "PROPUESTA_APLICADA",
+                    "CHAT_COLABORATIVO",
+                    "La IA CodeForge aplicó la propuesta #" + propuesta.getIdPropuesta() + ": '" + propuesta.getTitulo() + "' (" + operacionesEjecutadas + " operaciones ejecutadas sobre el diagrama v" + versionNueva + ").",
+                    propuesta.getOperacionesJson()
+            ));
+        } catch (Exception e) {
+            System.err.println("CODEFORGE BITACORA: Error registrando aplicación de propuesta: " + e.getMessage());
+        }
+
         // Notificar al canvas que el modelo fue actualizado para auto-recarga
         messagingTemplate.convertAndSend("/topic/proyecto/" + idProyecto + "/modelo-actualizado", (Object) Map.of(
                 "idModelo", modelo.getIdModelo(),
@@ -595,6 +615,23 @@ public class IaColaborativaService {
 
         IaPropuestaDTO dtoResultado = convertirAPropuestaDTO(guardada);
         broadcastPropuesta(idProyecto, dtoResultado);
+
+        // Registrar en la Bitácora del proyecto
+        try {
+            bitacoraService.registrarEvento(new com.codeforge.bitacora.dto.BitacoraEventoCreateDTO(
+                    idProyecto,
+                    usuario.getIdUsuario(),
+                    usuario.getNombre() + " (Reversión IA)",
+                    usuario.getUsername(),
+                    true,
+                    "PROPUESTA_REVERTIDA",
+                    "CHAT_COLABORATIVO",
+                    "Se revirtieron los cambios de la propuesta #" + propuesta.getIdPropuesta() + ": '" + propuesta.getTitulo() + "' restaurando la versión v" + versionRestaurada + ".",
+                    null
+            ));
+        } catch (Exception e) {
+            System.err.println("CODEFORGE BITACORA: Error registrando reversión de propuesta: " + e.getMessage());
+        }
 
         messagingTemplate.convertAndSend("/topic/proyecto/" + idProyecto + "/modelo-actualizado", (Object) Map.of(
                 "idModelo", modelo.getIdModelo(),
