@@ -2,7 +2,7 @@
 FROM eclipse-temurin:17-jdk-jammy AS build
 WORKDIR /app
 COPY .mvn/ .mvn
-COPY mvnw pom.xml ./
+COPY mvnw mvnw.cmd pom.xml ./
 RUN chmod +x mvnw
 COPY src ./src
 RUN ./mvnw clean package -DskipTests && rm -rf /root/.m2
