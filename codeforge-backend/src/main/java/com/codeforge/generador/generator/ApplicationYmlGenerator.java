@@ -31,7 +31,6 @@ public class ApplicationYmlGenerator {
 
                                           datasource:
                                             url: ${DB_URL:jdbc:postgresql://localhost:5432/codeforge_generated}
-                                            url: ${GENERATED_DB_URL:jdbc:postgresql://localhost:5432/codeforge_generated}
                                             username: ${DB_USERNAME:postgres}
                                             password: ${DB_PASSWORD:1234}
                                             driver-class-name: org.postgresql.Driver
@@ -58,7 +57,6 @@ public class ApplicationYmlGenerator {
                                         spring.application.name=codeforge-generated-backend
 
                                         spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/codeforge_generated}
-                                        spring.datasource.url=${GENERATED_DB_URL:jdbc:postgresql://localhost:5432/codeforge_generated}
                                         spring.datasource.username=${DB_USERNAME:postgres}
                                         spring.datasource.password=${DB_PASSWORD:1234}
                                         spring.datasource.driver-class-name=org.postgresql.Driver

@@ -1,0 +1,250 @@
+================================================================================
+CODEFORGE - ESPECIFICACION DE DISENO DE SOFTWARE (SDD) Y SCRIPT SQL
+MODULO: BITACORA COLABORATIVA Y AUDITORIA DUAL (HUMANO + IA)
+FECHA: 10/11/2026
+PROYECTO: PARCIAL_SW1 / PARCIAL_SW2
+================================================================================
+
+--------------------------------------------------------------------------------
+1. INFORMACION GENERAL Y PROPOSITO DEL DISENO (SDD)
+--------------------------------------------------------------------------------
+Codigo del Documento: SDD-CF-COLAB-BITACORA-01
+Nombre del Modulo   : Bitacora Colaborativa y Auditoria Bidireccional
+Objetivo:
+Proporcionar un mecanismo de trazabilidad y auditoria persistente en tiempo
+real dentro del panel colaborativo del editor UML de CodeForge. Registra tanto
+las acciones manuales ejecutadas por desarrolladores humanos en el lienzo
+(JointJS) como las modificaciones efectuadas por la Inteligencia Artificial
+(IA CodeForge), tratandola como un desarrollador mas del equipo.
+
+
+--------------------------------------------------------------------------------
+2. ACTORES DEL SISTEMA Y SUS ROLES
+--------------------------------------------------------------------------------
+A) DESARROLLADOR HUMANO (Usuario / Diseñador UML)
+   - Rol: Usuario autenticado que interactua directamente con el lienzo.
+   - Acciones que audita:
+     * Creacion de Clases, Interfaces o Enumeraciones.
+     * Edicion de propiedades de elementos (nombre, visibilidad, estereotipo).
+     * Eliminacion de elementos del diagrama.
+     * Creacion, modificacion y eliminacion de atributos.
+     * Creacion y supresion de operaciones/metodos.
+     * Trazado, edicion y eliminacion de relaciones entre clases.
+   - Distintivo visual: Avatar de usuario (👤), etiqueta azul, autor con su
+     nombre real y username.
+
+B) AGENTE INTELIGENTE (IA CodeForge - Asistente de Desarrollo)
+   - Rol: Co-desarrollador que analiza el diagrama, detecta incoherencias y
+     formula propuestas de arquitectura en el chat colaborativo.
+   - Acciones que audita:
+     * Aplicacion de propuestas arquitectonicas aprobadas.
+     * Reversion (rollback) de propuestas previamente aplicadas.
+   - Distintivo visual: Avatar de robot (🤖), autor "🤖 IA CodeForge",
+     etiqueta morada especial "badge-ia-dev" (Desarrollador IA).
+
+C) SERVIDOR CENTRAL (CodeForge Backend - Spring Boot Core)
+   - Rol: Persiste cada evento en PostgreSQL (tabla bitacora_evento) y
+     retransmite de forma inmediata el evento a todos los clientes conectados
+     via WebSocket STOMP (/topic/proyecto/{idProyecto}/bitacora).
+
+
+--------------------------------------------------------------------------------
+3. ESQUEMA DE INTERFAZ DE USUARIO (UI SPECIFICATION)
+--------------------------------------------------------------------------------
+Orden estricto de las pestanas en la barra de navegacion lateral colaborativa:
+
+       +----------------+--------------------+-------------------+
+       |     Chat       |     Propuestas     |     Bitacora      |
+       +----------------+--------------------+-------------------+
+
+- Chat      : Dialogo interactivo de requerimientos y diseno con la IA.
+- Propuestas: Tarjetas visuales con las propuestas de cambio generadas por la IA.
+- Bitacora  : Linea de tiempo (stream cronologico) con avatar, autor, insignia
+              de origen, etiqueta del tipo de accion, detalle del cambio y hora.
+
+
+--------------------------------------------------------------------------------
+4. SCRIPT SQL DE BASE DE DATOS (POSTGRESQL) - TABLA 'bitacora_evento'
+--------------------------------------------------------------------------------
+
+-- ============================================================================
+-- SCRIPT DDL: CREACION DE TABLA 'bitacora_evento'
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS bitacora_evento (
+    id BIGSERIAL PRIMARY KEY,
+    id_proyecto BIGINT NOT NULL,
+    usuario_id BIGINT NULL,
+    usuario_nombre VARCHAR(150) NOT NULL,
+    usuario_username VARCHAR(100) NULL,
+    es_ia BOOLEAN NOT NULL DEFAULT FALSE,
+    tipo_accion VARCHAR(60) NOT NULL,
+    origen VARCHAR(60) NOT NULL,
+    descripcion VARCHAR(1000) NOT NULL,
+    detalles_json TEXT NULL,
+    fecha_hora TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+
+    -- Restriccion de clave foranea al proyecto (eliminacion en cascada)
+    CONSTRAINT fk_bitacora_proyecto
+        FOREIGN KEY (id_proyecto)
+        REFERENCES proyecto (id_proyecto)
+        ON DELETE CASCADE,
+
+    -- Restriccion de clave foranea al usuario (auditor conserva registro si el usuario se elimina)
+    CONSTRAINT fk_bitacora_usuario
+        FOREIGN KEY (usuario_id)
+        REFERENCES usuario (id_usuario)
+        ON DELETE SET NULL
+);
+
+-- Indice para acelerar consultas cronologicas por proyecto
+CREATE INDEX IF NOT EXISTS idx_bitacora_proyecto_fecha 
+    ON bitacora_evento (id_proyecto, fecha_hora DESC);
+
+-- Documentacion del esquema en PostgreSQL
+COMMENT ON TABLE bitacora_evento IS 'Registra la auditoria cronologica de cambios efectuados en el proyecto por desarrolladores humanos y la IA.';
+COMMENT ON COLUMN bitacora_evento.es_ia IS 'Indica si la accion fue ejecutada por el agente inteligente (IA CodeForge).';
+COMMENT ON COLUMN bitacora_evento.origen IS 'Contexto del cambio: LIENZO_MANUAL (lienzo) o CHAT_COLABORATIVO (propuesta IA).';
+COMMENT ON COLUMN bitacora_evento.tipo_accion IS 'Clasificador: CREAR_ELEMENTO, EDITAR_ELEMENTO, ELIMINAR_ELEMENTO, AGREGAR_ATRIBUTO, CREAR_RELACION, PROPUESTA_APLICADA, etc.';
+
+-- ============================================================================
+-- SCRIPT DML: REGISTRO DE PRUEBA / SEMILLA
+-- ============================================================================
+-- INSERT INTO bitacora_evento (id_proyecto, usuario_id, usuario_nombre, usuario_username, es_ia, tipo_accion, origen, descripcion, fecha_hora)
+-- VALUES (1, NULL, '🤖 IA CodeForge', 'ia_codeforge', TRUE, 'PROPUESTA_APLICADA', 'CHAT_COLABORATIVO', 'Aplico la propuesta: Modelo inicial de reservas', NOW());
+
+
+--------------------------------------------------------------------------------
+5. ESPECIFICACION DE INTERFACES (API REST Y WEBSOCKET STOMP)
+--------------------------------------------------------------------------------
+
+A) GET /api/proyectos/{idProyecto}/bitacora
+   - Descripcion: Retorna la lista historica de eventos del proyecto ordenados
+     cronologicamente (del mas reciente al mas antiguo).
+   - Codigo HTTP: 200 OK
+   - Ejemplo de respuesta JSON:
+     [
+       {
+         "id": 1,
+         "idProyecto": 12,
+         "usuarioId": 5,
+         "usuarioNombre": "Juan Pablo",
+         "usuarioUsername": "jpablo",
+         "esIa": false,
+         "tipoAccion": "CREAR_ELEMENTO",
+         "origen": "LIENZO_MANUAL",
+         "descripcion": "Creo el elemento CLASE 'Boleto' en el lienzo.",
+         "detallesJson": null,
+         "fechaHora": "2026-11-10T00:35:10"
+       },
+       {
+         "id": 2,
+         "idProyecto": 12,
+         "usuarioId": null,
+         "usuarioNombre": "🤖 IA CodeForge",
+         "usuarioUsername": "ia_codeforge",
+         "esIa": true,
+         "tipoAccion": "PROPUESTA_APLICADA",
+         "origen": "CHAT_COLABORATIVO",
+         "descripcion": "Aplico la propuesta: Agregar relaciones Sala - Funcion",
+         "detallesJson": null,
+         "fechaHora": "2026-11-10T00:36:22"
+       }
+     ]
+
+B) POST /api/proyectos/{idProyecto}/bitacora
+   - Descripcion: Registra un nuevo evento manual proveniente del editor frontend.
+   - Codigo HTTP: 200 OK
+   - Payload JSON:
+     {
+       "usuarioId": 5,
+       "usuarioNombre": "Juan Pablo",
+       "usuarioUsername": "jpablo",
+       "esIa": false,
+       "tipoAccion": "AGREGAR_ATRIBUTO",
+       "origen": "LIENZO_MANUAL",
+       "descripcion": "Agrego el atributo 'monto: Double' a la clase 'Boleto'.",
+       "detallesJson": null
+     }
+
+C) CANAL WEBSOCKET STOMP (BROADCAST EN TIEMPO REAL)
+   - Topico de Suscripcion: /topic/proyecto/{idProyecto}/bitacora
+   - Descripcion: Cada vez que se registra un evento (manual o via IA), el
+     servidor publica automaticamente el objeto BitacoraEventoDTO en este
+     canal para actualizar la vista de todos los colaboradores conectados.
+
+
+--------------------------------------------------------------------------------
+6. MATRIZ DE TRAZABILIDAD DE ACCIONES AUDITADAS
+--------------------------------------------------------------------------------
+
+TIPO DE ACCION        ORIGEN              ACTOR                DESCRIPCION AUDITADA
+----------------------------------------------------------------------------------------------------
+CREAR_ELEMENTO        LIENZO_MANUAL       Desarrollador Humano  Creacion de Clase, Interfaz o Enum.
+EDITAR_ELEMENTO       LIENZO_MANUAL       Desarrollador Humano  Modificacion de propiedades/estereotipo.
+ELIMINAR_ELEMENTO     LIENZO_MANUAL       Desarrollador Humano  Supresion de elemento del modelo.
+AGREGAR_ATRIBUTO      LIENZO_MANUAL       Desarrollador Humano  Alta de atributo con tipo y visibilidad.
+EDITAR_ATRIBUTO       LIENZO_MANUAL       Desarrollador Humano  Modificacion de nombre, tipo o valor.
+ELIMINAR_ATRIBUTO     LIENZO_MANUAL       Desarrollador Humano  Eliminacion de atributo de la clase.
+AGREGAR_OPERACION     LIENZO_MANUAL       Desarrollador Humano  Alta de operacion/metodo con retorno.
+ELIMINAR_OPERACION    LIENZO_MANUAL       Desarrollador Humano  Supresion de metodo de la clase.
+CREAR_RELACION        LIENZO_MANUAL       Desarrollador Humano  Trazado de relacion (asoc, herencia, etc).
+EDITAR_RELACION       LIENZO_MANUAL       Desarrollador Humano  Modificacion de cardinalidad/roles.
+ELIMINAR_RELACION     LIENZO_MANUAL       Desarrollador Humano  Eliminacion de conector de relacion.
+PROPUESTA_APLICADA    CHAT_COLABORATIVO   🤖 IA CodeForge       Aplicacion automatica de propuesta IA.
+PROPUESTA_REVERTIDA   CHAT_COLABORATIVO   🤖 IA CodeForge       Rollback de propuesta aplicada previa.
+
+
+--------------------------------------------------------------------------------
+7. INVENTARIO COMPLETO DE ARCHIVOS CREADOS Y MODIFICADOS
+--------------------------------------------------------------------------------
+
+A) BACKEND (Spring Boot)
+   [CREADO]     codeforge-backend/src/main/java/com/codeforge/bitacora/entity/BitacoraEvento.java
+   [CREADO]     codeforge-backend/src/main/java/com/codeforge/bitacora/repository/BitacoraEventoRepository.java
+   [CREADO]     codeforge-backend/src/main/java/com/codeforge/bitacora/service/BitacoraService.java
+   [CREADO]     codeforge-backend/src/main/java/com/codeforge/bitacora/controller/BitacoraController.java
+   [CREADO]     codeforge-backend/src/main/java/com/codeforge/bitacora/dto/BitacoraEventoDTO.java
+   [CREADO]     codeforge-backend/src/main/java/com/codeforge/bitacora/dto/BitacoraEventoCreateDTO.java
+   [MODIFICADO] codeforge-backend/src/main/java/com/codeforge/ia/service/IaColaborativaService.java
+   [MODIFICADO] codeforge-backend/src/test/java/com/codeforge/ia/IaColaborativaServiceTest.java
+
+B) FRONTEND (Angular 18)
+   [CREADO]     codeforge-frontend/src/app/core/models/bitacora.model.ts
+   [CREADO]     codeforge-frontend/src/app/core/services/bitacora.service.ts
+   [MODIFICADO] codeforge-frontend/src/app/pages/editor/editor.html
+   [MODIFICADO] codeforge-frontend/src/app/pages/editor/editor.css
+   [MODIFICADO] codeforge-frontend/src/app/pages/editor/editor.ts
+
+
+--------------------------------------------------------------------------------
+8. GUIA DE ACTUALIZACION Y DESPLIEGUE EN SERVIDOR AWS EC2
+--------------------------------------------------------------------------------
+Todos los cambios ya fueron integrados y subidos al repositorio remoto:
+Repositorio: https://github.com/PabloVacaC/PARCIAL_SW2.git
+Rama       : main
+
+Pasos para actualizar el servidor de produccion:
+
+1. Conectarse por SSH a la instancia EC2:
+   ssh -i "tu-llave.pem" ubuntu@3.85.57.219
+
+2. Ingresar a la carpeta del proyecto y bajar los ultimos cambios:
+   cd /home/ubuntu/PARCIAL_SW2
+   git pull origin main
+
+3. Recompilar y levantar los contenedores de backend y frontend:
+   docker compose build codeforge-backend codeforge-frontend
+   docker compose up -d codeforge-backend codeforge-frontend
+
+4. Verificar que ambos contenedores esten arriba y saludables:
+   docker compose ps
+
+5. Probar en el navegador accediendo a http://3.85.57.219/editor/{id}:
+   - Verificar la pestana 'Bitacora' al lado de 'Propuestas'.
+   - Realizar cambios manuales y verificar que aparezcan con tu nombre.
+   - Aplicar una propuesta con la IA y verificar que aparezca con '🤖 IA CodeForge'.
+================================================================================
+FIN DEL DOCUMENTO SDD
+================================================================================
+
